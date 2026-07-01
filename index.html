@@ -101,7 +101,7 @@
         const SUPABASE_URL = 'https://eihsgpqquydxbglqlret.supabase.co';
         const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVpaHNncHFxdXlkeGJnbHFscmV0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI4MTU3MzksImV4cCI6MjA5ODM5MTczOX0.1GB3rw5xKygdqLUhVh4ND6z98CSFraCqSM2hWyTN9ng';
         // ⚠️ WAJIB GANTI: Isi dengan SERVICE_ROLE_KEY dari Supabase 2 (Settings → API → service_role)
-        const SUPABASE_SERVICE_ROLE_KEY = 'YOUR_SERVICE_ROLE_KEY_HERE';
+        const SUPABASE_SERVICE_ROLE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVpaHNncHFxdXlkeGJnbHFscmV0Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4MjgxNTczOSwiZXhwIjoyMDk4MzkxNzM5fQ.npagTXUpMt2cJwwuOHMmCTA7Gu3JImLzn9wYxoBt1k0';
 
         const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
         const rupiah = (val) => 'Rp' + new Intl.NumberFormat('id').format(val || 0);
