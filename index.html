@@ -96,7 +96,12 @@
 
     const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
     const rupiah = (val) => 'Rp' + new Intl.NumberFormat('id').format(val || 0);
-
+// Tambahkan setelah const supabase = ...
+supabase.from('orders_sync').select('*', { count: 'exact', head: true })
+  .then(({ count, error }) => {
+    if (error) alert('Error: ' + error.message);
+    else alert('Total data di tabel: ' + count);
+  });
     // ===== LOAD DASHBOARD =====
     async function loadDashboard() {
         try {
