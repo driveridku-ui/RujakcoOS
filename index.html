@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>RujakOS • Command Center</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+<style>
+  :root {
+    --bg: #FFFFFF;
+    --bg-secondary: #F2F2F7;
+    --text: #1C1C1E;
+    --text-secondary: #8E8E93;
+    --blue: #007AFF;
+    --blue-light: #E9F0FF;
+    --red: #FF3B30;
+    --red-light: #FFEEED;
+    --green: #34C759;
+    --green-light: #E6F9EC;
+    --orange: #FF9500;
+    --orange-light: #FFF2E5;
+    --separator: #E5E5EA;
+    --shadow: 0 1px 4px rgba(0,0,0,0.04), 0 2px 8px rgba(0,0,0,0.04);
+    --radius: 16px;
+    --radius-sm: 12px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg-secondary);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', sans-serif;
+    -webkit-font-smoothing: antialiased;
+    line-height: 1.5;
+    padding-bottom: 80px; /* for bottom tab bar */
+  }
+  .hidden { display: none !important; }
+  .container { max-width: 520px; margin: 0 auto; padding: 0 16px; }
+
+  /* Login screen */
+  .login-screen {
+    display: flex; align-items: center; justify-content: center; min-height: 100vh;
+    background: var(--bg);
+  }
+  .login-card {
+    background: #fff; border-radius: 20px; padding: 28px 24px; width: 100%; max-width: 360px;
+    box-shadow: var(--shadow);
+  }
+  .login-card .logo { width: 48px; height: 48px; border-radius: 12px; background: var(--red); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 24px; margin: 0 auto 16px; }
+  .login-card h1 { font-size: 20px; font-weight: 600; text-align: center; margin-bottom: 4px; }
+  .login-card .sub { color: var(--text-secondary); font-size: 13px; text-align: center; margin-bottom: 24px; }
+  .field { margin-bottom: 14px; }
+  .field label { font-size: 12px; font-weight: 600; color: var(--text-secondary); margin-bottom: 4px; display: block; }
+  .field input { width: 100%; padding: 12px; border: 1px solid var(--separator); border-radius: 12px; font-size: 16px; background: var(--bg-secondary); }
+  .btn-full { width: 100%; padding: 14px; border-radius: 12px; font-weight: 600; font-size: 16px; border: none; background: var(--blue); color: #fff; margin-top: 8px; cursor: pointer; }
+  .btn-full:disabled { opacity: 0.5; }
+  .login-msg { font-size: 13px; padding: 10px 12px; border-radius: 10px; margin-bottom: 12px; display: none; }
+  .login-msg.err { background: var(--red-light); color: var(--red); }
+  .login-msg.ok { background: var(--green-light); color: var(--green); }
+
+  /* Top header */
+  .topbar {
+    display: flex; justify-content: space-between; align-items: center; padding: 16px 0 12px;
+    background: var(--bg-secondary);
+  }
+  .brand { display: flex; align-items: center; gap: 10px; }
+  .brand .mark { width: 32px; height: 32px; border-radius: 8px; background: var(--red); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 18px; }
+  .brand h1 { font-size: 18px; font-weight: 600; }
+  .userbox { font-size: 13px; text-align: right; }
+  .userbox .email { color: var(--text-secondary); }
+  .logout-btn { background: none; border: none; color: var(--red); font-weight: 600; font-size: 13px; cursor: pointer; }
+
+  /* Priority Banner */
+  .priority-banner { background: var(--red); color: #fff; border-radius: 14px; padding: 14px 16px; margin: 12px 0; display: none; }
+  .priority-banner.show { display: flex; gap: 10px; align-items: flex-start; }
+  .priority-banner .ptitle { font-weight: 700; font-size: 14px; margin-bottom: 2px; }
+  .priority-banner .pdesc { font-size: 13px; opacity: 0.95; }
+  .priority-banner .pmeta { font-size: 11px; opacity: 0.8; margin-top: 4px; }
+
+  /* Section headers */
+  .section-title { font-size: 15px; font-weight: 600; margin: 24px 0 10px; display: flex; align-items: baseline; gap: 8px; }
+  .badge-count { font-size: 12px; font-weight: 600; background: var(--blue); color: #fff; border-radius: 100px; padding: 2px 10px; }
+
+  /* Orchestrate card */
+  .action-card { background: var(--bg); border-radius: var(--radius); padding: 16px; display: flex; justify-content: space-between; align-items: center; box-shadow: var(--shadow); margin-bottom: 16px; }
+  .action-card h3 { font-size: 15px; font-weight: 600; }
+  .action-card p { font-size: 13px; color: var(--text-secondary); margin-top: 2px; }
+  .btn-primary { background: var(--blue); color: #fff; border: none; border-radius: 100px; padding: 10px 20px; font-weight: 600; font-size: 14px; cursor: pointer; white-space: nowrap; }
+  .btn-primary:disabled { background: #A0C4FF; }
+
+  /* Queue list */
+  .queue-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 20px; }
+  .queue-item { background: var(--bg); border-radius: var(--radius-sm); padding: 14px 16px; box-shadow: var(--shadow); display: flex; align-items: center; gap: 12px; }
+  .queue-item .indicator { width: 4px; align-self: stretch; border-radius: 4px; background: var(--separator); }
+  .queue-item.risk .indicator { background: var(--red); }
+  .queue-item .info { flex: 1; min-width: 0; }
+  .queue-item .tag { font-size: 11px; font-weight: 600; color: var(--orange); text-transform: uppercase; letter-spacing: 0.5px; }
+  .queue-item.risk .tag { color: var(--red); }
+  .queue-item .title { font-size: 15px; font-weight: 500; margin: 2px 0; }
+  .queue-item .preview { font-size: 13px; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .empty-state { color: var(--text-secondary); text-align: center; padding: 20px; font-size: 14px; background: var(--bg); border-radius: var(--radius); }
+
+  /* KPI grid (2 columns) */
+  .kpi-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 16px 0; }
+  .kpi-card { background: var(--bg); border-radius: var(--radius-sm); padding: 14px; box-shadow: var(--shadow); }
+  .kpi-card .kpi-label { font-size: 12px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.4px; }
+  .kpi-card .kpi-value { font-size: 22px; font-weight: 600; margin-top: 6px; }
+  .chart-box { background: var(--bg); border-radius: var(--radius); padding: 12px; box-shadow: var(--shadow); margin-bottom: 16px; }
+
+  /* Pipeline kanban (scroll horizontal) */
+  .pipeline-scroll { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 8px; margin-bottom: 16px; }
+  .pipeline-col { min-width: 130px; max-width: 160px; flex-shrink: 0; background: var(--bg-secondary); border-radius: var(--radius-sm); padding: 10px; }
+  .pipeline-col h4 { font-size: 11px; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; margin-bottom: 8px; display: flex; justify-content: space-between; }
+  .pipeline-item { background: var(--bg); border-radius: 10px; padding: 8px 10px; margin-bottom: 6px; font-size: 12px; box-shadow: var(--shadow); cursor: pointer; }
+  .pipeline-item .pscore.good { color: var(--green); font-weight: 600; } .mid { color: var(--orange); } .low { color: var(--red); }
+  .draft-snippet { font-size: 10px; color: var(--text-secondary); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  /* Plan card */
+  .plan-card { background: var(--bg); border-radius: var(--radius); padding: 16px; box-shadow: var(--shadow); margin: 16px 0; }
+  .plan-card .ptarget { background: var(--red); color: #fff; border-radius: 100px; padding: 4px 12px; font-size: 11px; font-weight: 600; display: inline-block; margin-bottom: 8px; }
+
+  /* Tabs (bottom navigation) */
+  .bottom-tab-bar {
+    position: fixed; bottom: 0; left: 0; right: 0; background: var(--bg);
+    border-top: 1px solid var(--separator); display: flex; justify-content: space-around;
+    padding: 8px 0 env(safe-area-inset-bottom, 16px);
+    z-index: 100;
+  }
+  .bottom-tab { display: flex; flex-direction: column; align-items: center; font-size: 10px; font-weight: 500; color: var(--text-secondary); background: none; border: none; cursor: pointer; }
+  .bottom-tab .tab-icon { font-size: 22px; margin-bottom: 2px; }
+  .bottom-tab.active { color: var(--blue); }
+
+  /* Panels */
+  .tab-panel { display: none; padding-bottom: 20px; }
+  .tab-panel.active { display: block; }
+
+  /* Modal */
+  .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.4); display: none; align-items: center; justify-content: center; z-index: 200; padding: 20px; }
+  .modal-overlay.active { display: flex; }
+  .modal-box { background: var(--bg); border-radius: 20px; max-width: 480px; width: 100%; max-height: 80vh; overflow-y: auto; padding: 20px; position: relative; }
+  .modal-box .mclose { position: absolute; right: 12px; top: 12px; background: none; border: none; font-size: 24px; color: var(--text-secondary); cursor: pointer; }
+  .modal-box h3 { font-size: 17px; font-weight: 600; margin-bottom: 4px; }
+  .modal-box .msub { font-size: 12px; color: var(--text-secondary); margin-bottom: 12px; }
+  .modal-box .mbody { white-space: pre-wrap; font-size: 14px; background: var(--bg-secondary); border-radius: 12px; padding: 12px; margin: 12px 0; }
+
+  /* Settings */
+  .settings-card { background: var(--bg); border-radius: var(--radius); padding: 16px; box-shadow: var(--shadow); margin-bottom: 16px; }
+  .settings-card h3 { font-size: 16px; font-weight: 600; margin-bottom: 8px; }
+  .config-input { width: 80px; padding: 8px; border: 1px solid var(--separator); border-radius: 8px; margin: 8px 0; }
+  textarea.config-textarea { width: 100%; padding: 10px; border: 1px solid var(--separator); border-radius: 8px; font-family: inherit; margin-top: 8px; resize: vertical; }
+  .save-msg { font-size: 12px; color: var(--green); margin-top: 6px; display: none; }
+
+  /* Guide */
+  .guide-block { background: var(--green-light); border-left: 4px solid var(--green); border-radius: 10px; padding: 14px 16px; margin-bottom: 12px; }
+  .guide-block h4 { color: var(--green); font-size: 14px; font-weight: 600; margin: 0 0 6px; }
+  .guide-block p, .guide-block li { font-size: 13px; color: var(--text); }
+  .guide-block ul { padding-left: 18px; }
+  .guide-block li { margin-bottom: 4px; }
+
+  @media (max-width: 380px) {
+    .kpi-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<!-- LOGIN SCREEN -->
+<div id="loginScreen" class="login-screen">
+  <div class="login-card">
+    <div class="logo">🌶️</div>
+    <h1>RujakOS</h1>
+    <p class="sub">Internal Command Center</p>
+    <div class="login-msg err" id="loginErr"></div>
+    <form id="loginForm">
+      <div class="field"><label>Email</label><input type="email" id="email" required></div>
+      <div class="field"><label>Password</label><input type="password" id="password" required></div>
+      <button type="submit" class="btn-full" id="loginBtn">Masuk</button>
+    </form>
+  </div>
+</div>
+
+<!-- MAIN APP -->
+<div id="app" class="hidden">
+  <div class="container">
+    <!-- Header -->
+    <div class="topbar">
+      <div class="brand">
+        <div class="mark">🌶️</div>
+        <h1>RujakOS</h1>
+      </div>
+      <div class="userbox">
+        <div class="email" id="userEmail"></div>
+        <button class="logout-btn" id="logoutBtn">Keluar</button>
+      </div>
+    </div>
+
+    <div class="priority-banner" id="priorityBanner">
+      <span>🚨</span>
+      <div>
+        <div class="ptitle">Prioritas Tinggi</div>
+        <div class="pdesc" id="priorityDesc"></div>
+        <div class="pmeta" id="priorityMeta"></div>
+      </div>
+    </div>
+
+    <!-- Tab panels -->
+    <div class="tab-panel active" id="tab-dashboard">
+      <div class="action-card">
+        <div>
+          <h3>🧠 Siklus Harian</h3>
+          <p>Jalankan CEO-Agent untuk 6 slot konten</p>
+        </div>
+        <button class="btn-primary" id="btnOrchestrate">Mulai</button>
+      </div>
+
+      <div class="section-title">Perlu Tindakan <span class="badge-count" id="queueCount">0</span></div>
+      <div class="queue-list" id="actionQueue"><div class="empty-state">Memuat…</div></div>
+
+      <div class="section-title">Denyut Bisnis</div>
+      <div class="kpi-grid">
+        <div class="kpi-card"><div class="kpi-label">Total Order</div><div class="kpi-value" id="statOrders">-</div></div>
+        <div class="kpi-card"><div class="kpi-label">Pendapatan</div><div class="kpi-value" id="statRevenue">-</div></div>
+        <div class="kpi-card"><div class="kpi-label">Pending</div><div class="kpi-value" id="statPending">-</div></div>
+        <div class="kpi-card"><div class="kpi-label">Terlaris</div><div class="kpi-value" id="statTopMenu" style="font-size:15px;">-</div></div>
+      </div>
+      <div class="chart-box"><canvas id="salesChart" height="80"></canvas></div>
+
+      <div class="plan-card" id="planContainer"><p style="color:var(--text-secondary);">Memuat rekomendasi…</p></div>
+
+      <div class="section-title">Pipeline Konten <span class="badge-count" id="pipeCount">0</span></div>
+      <div class="pipeline-scroll" id="pipelineCols"></div>
+    </div>
+
+    <div class="tab-panel" id="tab-laporan">
+      <div class="plan-card" id="weeklyReportContainer"><p style="color:var(--text-secondary);">Memuat laporan…</p></div>
+      <div class="plan-card" id="auditLogContainer"><p style="color:var(--text-secondary);">Memuat audit log…</p></div>
+    </div>
+
+    <div class="tab-panel" id="tab-pengaturan">
+      <div class="settings-card">
+        <h3>Ambang Auto-Publish</h3>
+        <p style="font-size:12px;color:var(--text-secondary);margin-bottom:8px;">Skor minimal konten untuk auto-schedule (tanpa risiko).</p>
+        <input type="number" id="thresholdInput" class="config-input" value="90" min="0" max="100" />
+        <button class="btn-primary" id="saveThresholdBtn">Simpan</button>
+        <div id="thresholdSaved" class="save-msg">✓ Tersimpan</div>
+      </div>
+      <div class="settings-card">
+        <h3>Instruksi ke AI Planner</h3>
+        <p style="font-size:12px;color:var(--text-secondary);margin-bottom:8px;">Contoh: "Fokus promosi Rujak Gaco minggu ini"</p>
+        <textarea id="userInstruction" class="config-textarea" rows="3" placeholder="Tulis instruksi..."></textarea>
+        <button class="btn-primary" id="sendInstructionBtn" style="margin-top:8px;">Kirim</button>
+        <div id="instructionSaved" class="save-msg">✓ Instruksi tersimpan</div>
+      </div>
+    </div>
+
+    <div class="tab-panel" id="tab-panduan">
+      <div class="settings-card">
+        <h3>📖 Panduan Operasional</h3>
+        <div class="guide-block">
+          <h4>⚙️ Alur CEO-Agent</h4>
+          <p>1. Priority Engine cek anomali → alert merah.<br>2. Planner baca brand, learnings, cuaca, instruksi Anda → rekomendasi.<br>3. Writer buat draft 6 slot.<br>4. Reviewer beri skor & risiko.<br>5. Skor ≥ threshold & tidak berisiko → auto-schedule. Di bawahnya → pending human.</p>
+        </div>
+        <div class="guide-block">
+          <h4>🕒 Rutinitas Harian</h4>
+          <ul><li>Pagi: klik <strong>Mulai</strong> di Dashboard.</li><li>Lihat <strong>Perlu Tindakan</strong> – setujui konten.</li><li>Sore: pantau order & grafik.</li><li>Mingguan: cek Laporan & Audit.</li></ul>
+        </div>
+        <div class="guide-block">
+          <h4>✋ Intervensi</h4>
+          <ul><li>Approve konten di pipeline/antrian.</li><li>Ubah threshold di Pengaturan.</li><li>Beri instruksi teks ke AI di Pengaturan.</li></ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bottom Tab Bar -->
+  <div class="bottom-tab-bar">
+    <button class="bottom-tab active" data-tab="dashboard"><span class="tab-icon">📊</span><span>Dashboard</span></button>
+    <button class="bottom-tab" data-tab="laporan"><span class="tab-icon">📋</span><span>Laporan</span></button>
+    <button class="bottom-tab" data-tab="pengaturan"><span class="tab-icon">⚙️</span><span>Pengaturan</span></button>
+    <button class="bottom-tab" data-tab="panduan"><span class="tab-icon">📖</span><span>Panduan</span></button>
+  </div>
+
+  <!-- Modal -->
+  <div class="modal-overlay" id="draftModal">
+    <div class="modal-box">
+      <button class="mclose" id="modalClose">&times;</button>
+      <h3 id="modalTitle"></h3>
+      <div class="msub" id="modalSub"></div>
+      <div class="mbody" id="modalBody"></div>
+      <div id="modalActions"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ⚠️ SELURUH KODE DIBUNGKUS IIFE UNTUK MENCEGAH BENTROKAN VARIABEL GLOBAL
+(function() {
+  const SUPABASE_URL = 'https://eihsgpqquydxbglqlret.supabase.co';
+  const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVpaHNncHFxdXlkeGJnbHFscmV0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI4MTU3MzksImV4cCI6MjA5ODM5MTczOX0.1GB3rw5xKygdqLUhVh4ND6z98CSFraCqSM2hWyTN9ng';
+
+  const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  const rupiah = v => 'Rp' + Number(v||0).toLocaleString('id');
+  const esc = s => s?.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+  const loginScreen = document.getElementById('loginScreen');
+  const appEl = document.getElementById('app');
+
+  // Auth
+  document.getElementById('loginForm').addEventListener('submit', async e => {
+    e.preventDefault();
+    const email = document.getElementById('email').value, pass = document.getElementById('password').value;
+    const btn = document.getElementById('loginBtn'); btn.disabled = true; btn.innerText = 'Memproses…';
+    try {
+      const { error } = await supabase.auth.signInWithPassword({ email, password: pass });
+      if (error) throw error;
+      loginScreen.classList.add('hidden'); appEl.classList.remove('hidden');
+      document.getElementById('userEmail').innerText = email;
+      initApp();
+    } catch(e) {
+      document.getElementById('loginErr').style.display='block';
+      document.getElementById('loginErr').innerText = e.message;
+    } finally { btn.disabled = false; btn.innerText = 'Masuk'; }
+  });
+
+  document.getElementById('logoutBtn').addEventListener('click', async () => {
+    await supabase.auth.signOut();
+    loginScreen.classList.remove('hidden'); appEl.classList.add('hidden');
+  });
+
+  let allOrders=[], allContent=[];
+
+  async function initApp(){
+    await loadOrders(); loadPlan(); loadContent(); loadReport(); loadAudit(); loadThreshold();
+    checkPriority();
+    setInterval(checkPriority, 300000);
+    document.getElementById('btnOrchestrate').addEventListener('click', runOrchestrator);
+    document.getElementById('saveThresholdBtn').addEventListener('click', saveThreshold);
+    document.getElementById('sendInstructionBtn').addEventListener('click', sendInstruction);
+    document.querySelectorAll('.bottom-tab').forEach(b => b.addEventListener('click', switchTab));
+    document.getElementById('modalClose').addEventListener('click', ()=>document.getElementById('draftModal').classList.remove('active'));
+  }
+
+  function switchTab(e){
+    document.querySelectorAll('.bottom-tab').forEach(b=>b.classList.remove('active'));
+    e.currentTarget.classList.add('active');
+    document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));
+    document.getElementById('tab-'+e.currentTarget.dataset.tab).classList.add('active');
+  }
+
+  async function loadOrders(){
+    const { data, error } = await supabase.from('orders_sync').select('*').order('created_at',{ascending:false});
+    if (error) return; allOrders = data || [];
+    document.getElementById('statOrders').innerText = allOrders.length;
+    document.getElementById('statRevenue').innerText = rupiah(allOrders.reduce((s,o)=>s+(o.total||0),0));
+    document.getElementById('statPending').innerText = allOrders.filter(o=>o.status==='pending').length;
+    const menuCount={}; allOrders.forEach(o=> (o.items||[]).forEach(i=>{ const n=i.name||i.menu_name||'Rujak'; menuCount[n]=(menuCount[n]||0)+(i.qty||1); }));
+    const top = Object.entries(menuCount).sort((a,b)=>b[1]-a[1])[0];
+    document.getElementById('statTopMenu').innerText = top ? top[0] : '-';
+    renderChart();
+    renderQueue();
+  }
+
+  function renderChart(){
+    const dates=[]; for(let i=6;i>=0;i--){ const d=new Date(); d.setDate(d.getDate()-i); dates.push(d.toISOString().slice(0,10)); }
+    const map={}; dates.forEach(d=>map[d]=0);
+    allOrders.forEach(o=>{ const k=(o.created_at||'').slice(0,10); if(map[k]!==undefined) map[k]+=(o.total||0); });
+    if (window._chart) window._chart.destroy();
+    window._chart = new Chart(document.getElementById('salesChart'),{ type:'bar', data:{ labels: dates.map(d=>d.slice(5)), datasets:[{ data:Object.values(map), backgroundColor:'#007AFF', borderRadius:4, barThickness:16 }] }, options:{ responsive:true, plugins:{legend:{display:false}}, scales:{ y:{grid:{color:'#E5E5EA'}, ticks:{callback:v=>v>=1000?'Rp'+(v/1000)+'k':'Rp'+v}} } } });
+  }
+
+  async function loadPlan(){
+    const today = new Date().toISOString().slice(0,10);
+    const { data } = await supabase.from('ai_plans').select('*').eq('plan_date',today).order('created_at',{ascending:false}).limit(1);
+    if (data?.length) {
+      const p=data[0];
+      document.getElementById('planContainer').innerHTML = `<span class="ptarget">🎯 ${esc(p.target_menu)}</span><p style="font-size:14px;"><strong>${esc(p.title)}</strong><br>${esc(p.recommendation)}</p>`;
+    } else document.getElementById('planContainer').innerHTML = '<p style="color:var(--text-secondary);">Belum ada rekomendasi hari ini.</p>';
+  }
+
+  async function loadContent(){
+    const { data } = await supabase.from('content_workflow').select('*').order('created_at',{ascending:false});
+    allContent = data || [];
+    renderPipeline(); renderQueue();
+  }
+
+  function renderPipeline(){
+    const cols = { draft:[], pending_human:[], scheduled:[], published:[] };
+    allContent.forEach(c => cols[c.status||'draft']?.push(c));
+    document.getElementById('pipeCount').innerText = allContent.length;
+    document.getElementById('pipelineCols').innerHTML = Object.entries(cols).map(([key,items])=>`
+      <div class="pipeline-col"><h4>${key.replace('_',' ')} ${items.length}</h4>
+        ${items.map(c=>`<div class="pipeline-item" data-open="${c.id}">
+          <div><strong>${esc(c.title||c.slot_type)}</strong></div>
+          <div class="draft-snippet">${esc((c.draft||'').substring(0,30))}${c.draft&&c.draft.length>30?'…':''}</div>
+          <span class="pscore ${(c.score>=80?'good':c.score>=60?'mid':'low')}">${c.score??'-'}</span>
+        </div>`).join('')||'<div style="color:#8E8E93;font-size:12px;">Kosong</div>'}
+      </div>`).join('');
+    document.querySelectorAll('.pipeline-item[data-open]').forEach(el=> el.addEventListener('click', ()=>openDraft(parseInt(el.dataset.open))));
+  }
+
+  function renderQueue(){
+    const items = [...allContent.filter(c=>c.status==='pending_human').map(c=>({...c, urgency:4})), ...allContent.filter(c=>c.status==='scheduled').map(c=>({...c, urgency:2}))];
+    const pendingOrders = allOrders.filter(o=>o.status==='pending').slice(0,3);
+    document.getElementById('queueCount').innerText = items.length + pendingOrders.length;
+    if (!items.length && !pendingOrders.length) {
+      document.getElementById('actionQueue').innerHTML = '<div class="empty-state">✅ Semua beres</div>'; return;
+    }
+    let html = items.map(it=>`<div class="queue-item ${it.risk_flag?'risk':''}" data-open="${it.id}">
+      <div class="indicator"></div><div class="info"><div class="tag">${it.status==='pending_human'?'Butuh tinjauan':'Menunggu posting'}</div>
+      <div class="title">${esc(it.title||it.slot_type)}</div><div class="preview">Skor ${it.score??'-'} · ${esc((it.draft||'').substring(0,40))}…</div></div></div>`).join('');
+    html += pendingOrders.map(o=>`<div class="queue-item"><div class="indicator" style="background:#FF9500;"></div><div class="info"><div class="tag">Order pending</div><div class="title">${esc(o.customer_name||'Pelanggan')}</div><div class="preview">${rupiah(o.total)}</div></div></div>`).join('');
+    document.getElementById('actionQueue').innerHTML = html;
+    document.querySelectorAll('.queue-item[data-open]').forEach(el=> el.addEventListener('click', ()=>openDraft(parseInt(el.dataset.open))));
+  }
+
+  function openDraft(id){
+    const c = allContent.find(x=>x.id===id); if(!c) return;
+    document.getElementById('modalTitle').innerText = c.title || c.slot_type;
+    document.getElementById('modalSub').innerText = `${c.slot_type||'-'} · Skor ${c.score??'-'}${c.risk_flag?' · ⚠️ berisiko':''}`;
+    document.getElementById('modalBody').innerText = c.draft || '(kosong)';
+    const actions = document.getElementById('modalActions'); actions.innerHTML='';
+    if (c.status==='pending_human'){
+      const btn = document.createElement('button'); btn.className='btn-primary'; btn.innerText='Setujui & Publikasikan';
+      btn.onclick = ()=> updateStatus(c.id,'published');
+      actions.appendChild(btn);
+    } else if (c.status==='scheduled'){
+      const btn = document.createElement('button'); btn.className='btn-primary'; btn.innerText='Tandai Sudah Terbit';
+      btn.onclick = ()=> updateStatus(c.id,'published');
+      actions.appendChild(btn);
+    }
+    document.getElementById('draftModal').classList.add('active');
+  }
+
+  async function updateStatus(id, status){
+    await supabase.from('content_workflow').update({ status, updated_at: new Date().toISOString() }).eq('id', id);
+    document.getElementById('draftModal').classList.remove('active');
+    loadContent();
+  }
+
+  async function runOrchestrator(){
+    const btn = document.getElementById('btnOrchestrate'); btn.disabled=true; btn.innerText='Menjalankan…';
+    try {
+      const res = await fetch(`${SUPABASE_URL}/functions/v1/ai-orchestrator`, { method:'POST', headers:{ 'apikey':SUPABASE_ANON_KEY, 'Authorization':`Bearer ${SUPABASE_ANON_KEY}`, 'Content-Type':'application/json' } });
+      const r = await res.json();
+      if (r.success && r.summary?.priority_alert) {
+        document.getElementById('priorityDesc').innerText = r.summary.priority_alert.description;
+        document.getElementById('priorityBanner').classList.add('show');
+      }
+      loadContent(); loadReport(); loadAudit();
+    } catch(e){ alert(e.message); }
+    finally { btn.disabled=false; btn.innerText='Mulai'; }
+  }
+
+  async function checkPriority(){
+    try {
+      const res = await fetch(`${SUPABASE_URL}/functions/v1/ai-priority-engine`, { method:'POST', headers:{ 'apikey':SUPABASE_ANON_KEY, 'Authorization':`Bearer ${SUPABASE_ANON_KEY}` } });
+      const r = await res.json();
+      if (r.success && r.highest_priority) {
+        document.getElementById('priorityDesc').innerText = r.highest_priority.description;
+        document.getElementById('priorityMeta').innerText = `Score: ${r.highest_priority.priority_score || 0}`;
+        document.getElementById('priorityBanner').classList.add('show');
+      }
+    } catch(e) { /* silent fail */ }
+  }
+
+  async function loadReport(){
+    const { data } = await supabase.from('ai_logs').select('*').eq('agent_type','orchestrator').order('created_at',{ascending:false}).limit(7);
+    if (data) document.getElementById('weeklyReportContainer').innerHTML = data.map(l=>`<div style="padding:6px 0;font-size:13px;">${new Date(l.created_at).toLocaleDateString('id')} — ${l.response?.slice(0,60)}</div>`).join('');
+  }
+  async function loadAudit(){
+    const { data } = await supabase.from('decision_log').select('*').order('created_at',{ascending:false}).limit(20);
+    if (data) document.getElementById('auditLogContainer').innerHTML = data.map(d=>`<div style="font-size:13px;padding:4px 0;">${esc(d.agent)} · ${esc(d.decision_type)}<br><span style="color:#8E8E93;">${esc(d.context_summary)}</span></div>`).join('');
+  }
+
+  async function loadThreshold(){
+    const { data } = await supabase.from('system_config').select('value').eq('key','auto_publish_threshold').single();
+    if (data) document.getElementById('thresholdInput').value = data.value?.score || 90;
+  }
+  async function saveThreshold(){
+    const v = parseInt(document.getElementById('thresholdInput').value);
+    await supabase.from('system_config').upsert({ key:'auto_publish_threshold', value:{score:v} });
+    document.getElementById('thresholdSaved').style.display='block';
+    setTimeout(()=> document.getElementById('thresholdSaved').style.display='none', 2000);
+  }
+  async function sendInstruction(){
+    const txt = document.getElementById('userInstruction').value.trim();
+    if (!txt) return;
+    await supabase.from('user_feedback').insert({ feedback_type:'instruction', content:txt, target_agent:'planner', is_active:true, applied:false });
+    document.getElementById('userInstruction').value='';
+    document.getElementById('instructionSaved').style.display='block';
+    setTimeout(()=> document.getElementById('instructionSaved').style.display='none', 2000);
+  }
+
+  // Session check
+  (async ()=>{
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session) {
+      loginScreen.classList.add('hidden');
+      appEl.classList.remove('hidden');
+      document.getElementById('userEmail').innerText = session.user.email;
+      initApp();
+    }
+  })();
+})();
+</script>
+</body>
+</html>
