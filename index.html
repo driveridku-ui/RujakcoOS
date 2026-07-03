@@ -1,0 +1,876 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>RujakOS — Command Center</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700;9..144,800&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+<style>
+  :root{
+    --paper:#FBF6EE; --panel:#F3E8D8; --panel-line:#E4D4BC;
+    --ink:#2B2320; --ink-soft:#7A6C5F;
+    --chili:#C1421A; --chili-dark:#8F3013; --chili-wash:#F7E3DA;
+    --gold:#B37B22; --gold-wash:#F3E6CC;
+    --leaf:#3F6B4A; --leaf-wash:#E4EEE3; --leaf-dark:#284B31;
+    --danger:#B23A2E; --danger-wash:#FBEAE7;
+  }
+  *{box-sizing:border-box;}
+  body{ margin:0; background:var(--paper); color:var(--ink); font-family:'Inter',system-ui,sans-serif; -webkit-font-smoothing:antialiased; }
+  h1,h2,h3,h4,.display{ font-family:'Fraunces',serif; letter-spacing:-0.01em; }
+  .hidden{ display:none !important; }
+  .wrap{ max-width:1100px; margin:0 auto; padding:20px 16px 80px; }
+
+  /* ===== LOGIN SCREEN ===== */
+  .login-screen{ min-height:100vh; display:flex; align-items:center; justify-content:center; padding:20px; }
+  .login-card{ background:#fff; border:1px solid var(--panel-line); border-radius:18px; padding:36px 32px; max-width:380px; width:100%; box-shadow: 0 10px 30px rgba(0,0,0,0.05); }
+  .login-card .mark{ width:48px; height:48px; border-radius:12px; background:var(--chili); display:flex; align-items:center; justify-content:center; font-size:24px; margin:0 auto 16px; }
+  .login-card h1{ text-align:center; font-size:24px; margin:0 0 6px; }
+  .login-card p.sub{ text-align:center; color:var(--ink-soft); font-size:13.5px; margin:0 0 24px; }
+  .field{ margin-bottom:16px; }
+  .field label{ font-size:12.5px; font-weight:600; display:block; margin-bottom:6px; color:var(--ink); }
+  .field input{ width:100%; padding:12px 14px; border:1px solid var(--panel-line); border-radius:10px; font-size:14px; font-family:inherit; background:var(--paper); transition: 0.2s; }
+  .field input:focus{ outline:none; border-color:var(--chili); box-shadow: 0 0 0 3px var(--chili-wash); }
+  .btn-full{ width:100%; padding:12px; border-radius:10px; font-weight:700; font-size:14px; cursor:pointer; }
+  .login-msg{ font-size:12.5px; padding:10px 14px; border-radius:8px; margin-bottom:14px; display:none; font-weight:500; }
+  .login-msg.err{ background:var(--danger-wash); color:var(--danger); border:1px solid #E8B8AE; }
+  .login-msg.ok{ background:var(--leaf-wash); color:var(--leaf); }
+
+  /* ===== MAIN HEADER & TOPBAR ===== */
+  .topbar{ display:flex; justify-content:space-between; align-items:center; gap:12px; padding-bottom:16px; margin-bottom:16px; border-bottom:2px solid var(--panel-line); }
+  .brand{ display:flex; align-items:center; gap:12px; }
+  .brand .mark{ width:42px; height:42px; border-radius:10px; background:var(--chili); display:flex; align-items:center; justify-content:center; font-size:20px; flex:none; box-shadow: 0 4px 10px rgba(193, 66, 26, 0.2); }
+  .brand h1{ font-size:22px; font-weight:700; margin:0; line-height:1; }
+  .brand p{ margin:4px 0 0; font-size:12px; color:var(--ink-soft); font-family: 'Inter', sans-serif;}
+  .userbox{ text-align:right; font-size:12px; }
+  .userbox .email{ color:var(--ink-soft); margin-bottom:4px; font-weight:500; }
+  .logout{ background:none; border:none; color:var(--chili); font-weight:700; font-size:12px; cursor:pointer; padding:0; text-decoration:underline; }
+  
+  .status-bar{ display:flex; justify-content:space-between; align-items:center; margin-bottom: 24px;}
+  .status-pill{ font-size:11.5px; font-weight:600; padding:6px 12px; border-radius:99px; background:var(--leaf-wash); color:var(--leaf); display:inline-flex; align-items:center; gap:6px; }
+  .status-pill.err{ background:var(--danger-wash); color:var(--danger); }
+  .status-pill .dot{ width:8px; height:8px; border-radius:99px; background:currentColor; animation: pulse 2s infinite; }
+  @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.4; } 100% { opacity: 1; } }
+
+  /* ===== NAVIGATION TAB BUTTONS ===== */
+  .tabbar{ display:flex; gap:8px; margin-bottom:32px; overflow-x:auto; padding-bottom:4px; }
+  .tabbar::-webkit-scrollbar { height: 4px; }
+  .tabbar::-webkit-scrollbar-thumb { background: var(--panel-line); border-radius: 4px; }
+  .tabbtn{ font-family:inherit; background:var(--panel); border:1px solid var(--panel-line); padding:10px 20px; font-size:13.5px; font-weight:600; color:var(--ink-soft); cursor:pointer; border-radius:99px; white-space:nowrap; transition:0.2s; }
+  .tabbtn:hover{ background:var(--paper); }
+  .tabbtn.active{ background:var(--ink); color:#fff; border-color:var(--ink); }
+  .tabpanel{ display:none; animation: fadeIn 0.3s ease-in-out; }
+  .tabpanel.active{ display:block; }
+  @keyframes fadeIn { from { opacity:0; transform:translateY(5px); } to { opacity:1; transform:translateY(0); } }
+
+  /* ===== CONTAINER WRAPPER ===== */
+  .section-wrap{ background:#fff; border:1px solid var(--panel-line); border-radius:16px; padding:24px; margin-bottom:24px; box-shadow: 0 2px 12px rgba(0,0,0,0.02); }
+  .section-header{ display:flex; align-items:center; justify-content:space-between; margin-bottom:20px; border-bottom:1px solid var(--panel-line); padding-bottom:12px;}
+  .section-header h2{ font-size:18px; font-weight:700; margin:0; color:var(--ink); }
+  .section-header .sub{ font-size:12.5px; color:var(--ink-soft); font-family: 'Inter', sans-serif;}
+
+  /* ===== BANNERS & ALERTS ===== */
+  #errorBanner{ display:none; background:var(--danger-wash); border:1px solid #E8B8AE; color:var(--danger); padding:14px; border-radius:12px; font-size:13.5px; margin-bottom:24px; font-weight:600; }
+  .priority-banner{ display:none; background:var(--danger); color:#fff; border-radius:12px; padding:16px 20px; margin-bottom:24px; box-shadow: 0 4px 15px rgba(178, 58, 46, 0.3); }
+  .priority-banner.show{ display:flex; gap:16px; align-items:center; }
+  .priority-banner .ptitle{ font-weight:800; font-size:15px; margin:0 0 4px; }
+  .priority-banner .pdesc{ font-size:13.5px; opacity:.95; margin:0; line-height:1.4; }
+
+  /* ===== 1. VITALS SEKSI: DENYUT BISNIS ===== */
+  .pulse-grid{ display:grid; grid-template-columns:repeat(4,1fr); gap:16px; }
+  .stat{ background:var(--paper); border:1px solid var(--panel-line); border-radius:12px; padding:16px; text-align:center; }
+  .stat .label{ font-size:11px; color:var(--ink-soft); font-weight:700; text-transform:uppercase; letter-spacing:.05em; margin-bottom:6px; }
+  .stat .value{ font-family:'Fraunces',serif; font-size:26px; font-weight:700; color:var(--chili); }
+  .chart-area{ margin-top:24px; padding-top:20px; border-top:1px dashed var(--panel-line); }
+
+  /* ===== 2. AKSI SEKSI: KENDALI AI ===== */
+  .control-grid{ display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+  .control-card{ border-radius:14px; padding:24px; display:flex; flex-direction:column; justify-content:space-between; gap:16px; }
+  
+  .cc-instant{ background:var(--leaf); color:#fff; box-shadow: 0 8px 20px rgba(63, 107, 74, 0.25); }
+  .cc-instant h3{ font-size:18px; margin:0 0 8px; color:#fff; }
+  .cc-instant p{ font-size:13px; opacity:0.9; margin:0; line-height:1.5; font-family: 'Inter', sans-serif;}
+  .cc-instant .btn-trigger{ background:#fff; color:var(--leaf-dark); }
+  .cc-instant .btn-trigger:hover{ background:var(--leaf-wash); }
+
+  .cc-auto{ background:var(--ink); color:var(--paper); box-shadow: 0 8px 20px rgba(43, 35, 32, 0.25); }
+  .cc-auto h3{ font-size:18px; margin:0 0 8px; color:#fff; }
+  .cc-auto p{ font-size:13px; opacity:0.8; margin:0; line-height:1.5; font-family: 'Inter', sans-serif;}
+  .cc-auto .btn-trigger{ background:var(--paper); color:var(--ink); }
+  .cc-auto .btn-trigger:hover{ background:var(--panel); }
+
+  .btn-trigger{ border:none; padding:14px 24px; border-radius:10px; font-weight:800; font-size:14px; cursor:pointer; width:100%; transition:0.2s; font-family:inherit; }
+  .btn-trigger:disabled{ opacity:0.6; cursor:not-allowed; }
+
+  /* ===== 3. PANDUAN SEKSI: KOMPAS STRATEGI AI ===== */
+  .plan-box{ background:var(--gold-wash); border:1px solid #E6D5B3; border-radius:12px; padding:20px; }
+  .plan-box .ptitle{ font-size:15px; font-weight:800; display:flex; align-items:center; gap:10px; margin-bottom:12px; color:var(--gold); }
+  .plan-box .ptarget{ background:var(--gold); color:#fff; font-size:11px; font-weight:800; padding:4px 12px; border-radius:99px; letter-spacing:0.02em; }
+  .plan-box p{ font-size:14px; line-height:1.6; margin:0; color:var(--ink); }
+
+  /* ===== 4. WORKSPACE SEKSI: MEJA KERJA KONTEN ===== */
+  .queue-header{ display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; }
+  .queue-header h3{ font-size:16px; margin:0; display:flex; align-items:center; gap:8px;}
+  .queue-header .badge{ background:var(--chili); color:#fff; font-size:12px; font-weight:700; padding:2px 8px; border-radius:99px; font-family: 'Inter', sans-serif;}
+  
+  .qcard{ background:var(--paper); border:1px solid var(--panel-line); border-left:4px solid var(--gold); border-radius:12px; padding:16px; margin-bottom:12px; display:flex; justify-content:space-between; align-items:center; gap:16px; transition:0.2s; }
+  .qcard:hover{ border-color:#d4c4af; background:#fff; }
+  .qcard.risk{ border-left-color:var(--danger); }
+  .qcard.low{ border-left-color:var(--leaf); }
+  .qcard .qtag{ font-size:10.5px; font-weight:800; text-transform:uppercase; letter-spacing:.05em; color:var(--gold); margin-bottom:6px; }
+  .qcard.risk .qtag{ color:var(--danger); }
+  .qcard.low .qtag{ color:var(--leaf); }
+  .qcard .qtitle{ font-size:15px; font-weight:700; margin:0; color:var(--ink); }
+  
+  /* Pipelining Layout Columns */
+  .pipeline{ display:grid; grid-template-columns:repeat(4,1fr); gap:16px; margin-top:24px; padding-top:24px; border-top:1px solid var(--panel-line); }
+  .pcol{ background:var(--paper); border-radius:12px; padding:16px; border:1px solid var(--panel-line); }
+  .pcol h4{ font-size:12px; font-weight:800; text-transform:uppercase; letter-spacing:.05em; color:var(--ink-soft); margin:0 0 16px; display:flex; justify-content:space-between; border-bottom:2px solid #E8DCC8; padding-bottom:8px;}
+  .pitem{ background:#fff; border-radius:10px; padding:12px; margin-bottom:10px; border:1px solid var(--panel-line); font-size:13px; cursor:pointer; transition:0.2s; box-shadow: 0 1px 3px rgba(0,0,0,0.02); }
+  .pitem:hover{ border-color:var(--chili-wash); transform:translateY(-1px); box-shadow: 0 4px 8px rgba(0,0,0,0.04); }
+  .pitem .ptitle2{ font-weight:700; margin-bottom:4px; line-height:1.3; }
+  .pitem .pslot{ font-size:11px; color:var(--ink-soft); }
+
+  /* ===== GENERIC UI COMPONENTS (TABLES & LISTS) ===== */
+  .data-table{ width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 13px; }
+  .data-table th{ background: var(--paper); border-bottom: 2px solid var(--panel-line); padding: 12px; text-align: left; font-weight: 700; color: var(--ink-soft); text-transform: uppercase; letter-spacing: 0.03em; font-size: 11px; }
+  .data-table td{ border-bottom: 1px solid var(--panel-line); padding: 14px 12px; color: var(--ink); }
+  .empty-state{ padding: 40px 20px; text-align: center; color: var(--ink-soft); background: var(--paper); border: 1px dashed var(--panel-line); border-radius: 12px; margin-top: 16px; }
+  
+  .guide-box{ background: var(--paper); border-radius: 12px; padding: 20px; border-left: 4px solid var(--leaf); margin-bottom: 16px; }
+  .guide-box h4{ margin: 0 0 8px; font-size: 15px; color: var(--ink); }
+  .guide-box p{ margin: 0; font-size: 13.5px; color: var(--ink-soft); line-height: 1.6; }
+
+  /* BUTTONS GLOBAL SYSTEM */
+  .btn{ font-family:inherit; font-size:13px; font-weight:700; padding:10px 18px; border-radius:8px; border:none; cursor:pointer; white-space:nowrap; transition:0.2s; }
+  .btn.primary{ background:var(--chili); color:#fff; }
+  .btn.primary:hover{ background:var(--chili-dark); }
+  .btn.ghost{ background:transparent; color:var(--ink); border:1px solid var(--ink); }
+  .btn.ghost:hover{ background:var(--ink); color:var(--paper); }
+  .btn:disabled{ opacity:.5; cursor:not-allowed; }
+
+  /* ===== PROFESSIONAL DIALOG / MODAL WINDOW ===== */
+  .modal-overlay{ position:fixed; inset:0; background:rgba(43,35,32,.7); display:none; align-items:center; justify-content:center; z-index:999; padding:20px; backdrop-filter: blur(4px); }
+  .modal-overlay.active{ display:flex; animation: fadeIn 0.2s ease; }
+  .modal-box{ background:#fff; border-radius:20px; max-width:700px; width:100%; max-height:90vh; display:flex; flex-direction:column; position:relative; box-shadow: 0 20px 40px rgba(0,0,0,0.2); }
+  .modal-header{ padding:20px 24px; border-bottom:1px solid var(--panel-line); display:flex; justify-content:space-between; align-items:flex-start; }
+  .modal-header h3{ font-size:18px; margin:0 0 6px; }
+  .modal-header .msub{ font-size:12.5px; color:var(--ink-soft); font-weight:500; font-family:'Inter', sans-serif;}
+  .mclose{ background:none; border:none; font-size:28px; cursor:pointer; color:var(--ink-soft); line-height:1; padding:0; margin-top:-4px; }
+  .mclose:hover{ color:var(--danger); }
+  .modal-body{ padding:24px; overflow-y:auto; flex:1; }
+  .draft-content{ white-space:pre-wrap; font-size:14px; line-height:1.7; background:var(--paper); border:1px solid var(--panel-line); border-radius:12px; padding:20px; font-family:'Inter', sans-serif; color:var(--ink); }
+  .modal-footer{ padding:20px 24px; border-top:1px solid var(--panel-line); display:flex; gap:12px; justify-content:flex-end; flex-wrap:wrap; background:#fcf9f2; border-bottom-left-radius:20px; border-bottom-right-radius:20px; }
+  .visual-prompt-box{ background:var(--gold-wash); border-radius:10px; padding:14px; margin-top:16px; border-left:4px solid var(--gold); }
+  .visual-prompt-box strong{ color:var(--gold); font-weight:700; }
+  .visual-prompt-box pre{ white-space:pre-wrap; font-size:13px; font-family:'Inter', sans-serif; margin:6px 0 0; color:var(--ink-soft); }
+  @media (max-width:860px){
+    .control-grid, .pulse-grid{ grid-template-columns:1fr 1fr; }
+    .pipeline{ grid-template-columns:1fr 1fr; }
+  }
+  @media (max-width:560px){
+    .pulse-grid, .control-grid{ grid-template-columns:1fr; }
+    .pipeline{ grid-template-columns:1fr; }
+    .qcard{ flex-direction:column; align-items:flex-start; } .qcard .qactions{ width:100%; } .qcard .qactions .btn{ flex:1; width:100%; text-align:center;}
+  }
+</style>
+</head>
+<body>
+
+<!-- ===== SCREEN: AKURASI LOGIN ===== -->
+<div class="login-screen" id="loginScreen">
+  <div class="login-card">
+    <div class="mark">🌶️</div>
+    <h1>RujakOS</h1>
+    <p class="sub">Log in ke Command Center</p>
+    <div class="login-msg err" id="loginErr"></div>
+    <div class="login-msg ok" id="loginOk"></div>
+    <form id="loginForm">
+      <div class="field"><label>Email</label><input type="email" id="email" required placeholder="admin@rujak.co" /></div>
+      <div class="field"><label>Password</label><input type="password" id="password" required placeholder="••••••••" /></div>
+      <button type="submit" class="btn primary btn-full" id="loginBtn">Masuk Sistem</button>
+    </form>
+  </div>
+</div>
+
+<!-- ===== CORE WORKSPACE ENGINE ===== -->
+<div class="wrap hidden" id="app">
+
+  <!-- TOP BRANDING NAVIGATION BAR -->
+  <div class="topbar">
+    <div class="brand">
+      <div class="mark">🌶️</div>
+      <div><h1>RujakOS</h1><p>Sistem Operasi Bisnis Otomatis</p></div>
+    </div>
+    <div class="userbox">
+      <div class="email" id="userEmail"></div>
+      <button class="logout" id="logoutBtn">Keluar</button>
+    </div>
+  </div>
+
+  <div class="status-bar">
+    <div class="status-pill" id="statusPill"><span class="dot"></span><span id="statusText">Menghubungkan…</span></div>
+  </div>
+
+  <div id="errorBanner"></div>
+  <div class="priority-banner" id="priorityBanner">
+    <div style="font-size:24px;">🚨</div>
+    <div>
+      <p class="ptitle">Prioritas Tinggi</p>
+      <p class="pdesc" id="priorityDesc"></p>
+    </div>
+  </div>
+
+  <!-- METRIC VIEW TABS -->
+  <div class="tabbar">
+    <button class="tabbtn active" data-tab="dashboard">Dashboard Utama</button>
+    <button class="tabbtn" data-tab="pengetahuan">Pengetahuan AI</button>
+    <button class="tabbtn" data-tab="laporan">Laporan Kinerja</button>
+    <button class="tabbtn" data-tab="pengaturan">Pengaturan</button>
+    <button class="tabbtn" data-tab="panduan">Panduan Penggunaan</button>
+  </div>
+
+  <!-- ==========================================
+       TAB PANEL 1: MASTER DASHBOARD 
+       ========================================== -->
+  <div class="tabpanel active" id="tab-dashboard">
+
+    <!-- BLOCK 1: Denyut Bisnis / Vitals Analytics -->
+    <div class="section-wrap">
+      <div class="section-header">
+        <h2>Denyut Bisnis</h2><span class="sub">Performa 7 hari terakhir</span>
+      </div>
+      <div class="pulse-grid">
+        <div class="stat"><div class="label">Total Order</div><div class="value" id="statOrders">0</div></div>
+        <div class="stat"><div class="label">Pendapatan</div><div class="value" id="statRevenue">Rp0</div></div>
+        <div class="stat"><div class="label">Pesanan Pending</div><div class="value" id="statPending">0</div></div>
+        <div class="stat"><div class="label">Menu Jagoan</div><div class="value" id="statTopMenu" style="font-size:18px; line-height:1.4;">-</div></div>
+      </div>
+      <div class="chart-area"><canvas id="salesChart" height="70"></canvas></div>
+    </div>
+
+    <!-- BLOCK 2: AI Action Command Center -->
+    <div class="section-wrap" style="background:transparent; border:none; padding:0; box-shadow:none;">
+      <div class="control-grid">
+        <!-- Generator Super Instan Engine -->
+        <div class="control-card cc-instant">
+          <div>
+            <h3>✨ Generator Super Instan</h3>
+            <p>Bypass sistem antrean. Hasilkan ide konten segar untuk TikTok, Instagram, dan Threads dalam satu klik. (Anti-Repetisi aktif).</p>
+          </div>
+          <button class="btn-trigger" id="btnInstantGenerate">🚀 Buat Konten Sekarang</button>
+        </div>
+        <!-- Autopilot Background Processor -->
+        <div class="control-card cc-auto">
+          <div>
+            <h3>🤖 Siklus Harian (Background)</h3>
+            <p>Delegasikan tugas harian ke AI. Sistem akan merencanakan, menulis, dan mereview 6 slot konten secara otomatis di latar belakang.</p>
+          </div>
+          <button class="btn-trigger" id="btnOrchestrate">Jalankan Autopilot</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- BLOCK 3: AI Planner Strategic Vector -->
+    <div class="section-wrap">
+      <div class="section-header">
+        <h2>Kompas Strategi AI</h2><span class="sub" id="planDate">Hari Ini</span>
+      </div>
+      <div id="planContainer" class="plan-box">
+        <p style="color:var(--ink-soft); font-style:italic;">Memuat rekomendasi arah promosi hari ini...</p>
+      </div>
+    </div>
+
+    <!-- BLOCK 4: Content Workflow Table Operations -->
+    <div class="section-wrap">
+      <div class="section-header">
+        <h2>Meja Kerja Konten</h2>
+        <button class="btn ghost" id="btnRefreshContent" style="padding:6px 12px; font-size:12px;">⟳ Segarkan Data</button>
+      </div>
+      
+      <!-- Action Needed Stack Elements -->
+      <div class="queue-header">
+        <h3>Perlu Keputusan Anda <span class="badge" id="queueCount">0</span></h3>
+      </div>
+      <div id="actionQueue"><div class="empty-state" style="padding:20px;">✨ Bersih! Tidak ada tugas yang menunggu.</div></div>
+
+      <!-- Linear Pipeline Processing Columns -->
+      <div class="pipeline" id="pipelineCols">
+        <div class="pcol"><h4>Draf Awal <span>0</span></h4><div class="pempty">Memuat...</div></div>
+        <div class="pcol"><h4>Pending Review <span>0</span></h4></div>
+        <div class="pcol"><h4>Siap Tayang <span>0</span></h4></div>
+        <div class="pcol"><h4>Selesai <span>0</span></h4></div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ==========================================
+       TAB PANEL 2: PENGETAHUAN (KNOWLEDGE GRAPH)
+       ========================================== -->
+  <div class="tabpanel" id="tab-pengetahuan">
+    <div class="section-wrap">
+      <div class="section-header">
+        <h2>Brain / Database Pengetahuan AI</h2>
+        <button class="btn primary" style="padding:8px 14px; font-size:12px;">+ Tambah Aset</button>
+      </div>
+      <p style="font-size:13.5px; color:var(--ink-soft); margin-top:-10px; margin-bottom:20px;">Berikan informasi produk, USP, atau link foto ke tabel ini agar AI semakin cerdas mengenal bisnis Anda.</p>
+      
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Tipe Entitas</th>
+            <th>Nama Aset / Informasi</th>
+            <th>Properti Spesifik</th>
+            <th>Aksi</th>
+          </tr>
+        </thead>
+        <tbody id="knowledgeTableBody">
+          <!-- akan diisi oleh JavaScript -->
+        </tbody>
+      </table>
+      <div class="empty-state" id="knowledgeEmpty">Belum ada data pengetahuan yang ditambahkan.</div>
+    </div>
+  </div>
+
+  <!-- ==========================================
+       TAB PANEL 3: LAPORAN KINERJA
+       ========================================== -->
+  <div class="tabpanel" id="tab-laporan">
+    <div class="section-wrap">
+      <div class="section-header">
+        <h2>Audit Evaluasi Kinerja (AI Evaluator)</h2>
+      </div>
+      <p style="font-size:14px; color:var(--ink-soft);">Rekapitulasi otomatis dari keputusan strategi AI dan performa konten selama sepekan terakhir.</p>
+      <div class="empty-state">Laporan mingguan sedang dikalkulasi. Silakan kembali lagi di akhir minggu.</div>
+    </div>
+  </div>
+
+  <!-- ==========================================
+       TAB PANEL 4: PENGATURAN
+       ========================================== -->
+  <div class="tabpanel" id="tab-pengaturan">
+    <div class="section-wrap">
+      <div class="section-header">
+        <h2>Konfigurasi Sistem</h2>
+      </div>
+      <div style="max-width:500px;">
+        <div class="field">
+          <label>URL Database (Supabase)</label>
+          <input type="text" value="https://eihsgpqquydxbglqlret.supabase.co" readonly style="opacity:0.7;">
+        </div>
+        <div class="field">
+          <label>Target Konten per Hari (Default)</label>
+          <input type="number" value="3" placeholder="Masukkan angka">
+        </div>
+        <button class="btn primary">Simpan Pengaturan</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==========================================
+       TAB PANEL 5: PANDUAN PENGGUNAAN
+       ========================================== -->
+  <div class="tabpanel" id="tab-panduan">
+    <div class="section-wrap">
+      <div class="section-header">
+        <h2>SOP & Panduan RujakOS</h2>
+      </div>
+      
+      <div class="guide-box">
+        <h4>1. Mode Generator Super Instan (Direkomendasikan)</h4>
+        <p>Gunakan tombol ini jika Anda butuh konten "saat ini juga". Sistem akan memotong antrean, menulis draf untuk 3 platform sekaligus, dan menghindari pengulangan ide dari konten sebelumnya.</p>
+      </div>
+      
+      <div class="guide-box" style="border-left-color:var(--gold);">
+        <h4>2. Menggunakan Fitur Buat Gambar Otomatis</h4>
+        <p>Setelah Anda menyetujui teks Draf, tekan tombol <strong>"Rakit Visual Promosi"</strong>. Sistem akan mengambil foto produk di Tab Pengetahuan dan memadukannya dengan Tipografi promosi secara otomatis.</p>
+      </div>
+      
+      <div class="guide-box" style="border-left-color:var(--ink);">
+        <h4>3. Pengelolaan Pengetahuan (Knowledge Graph)</h4>
+        <p>Rahasia kecerdasan AI ini ada di tab Pengetahuan. Pastikan Anda memasukkan URL Foto Produk Anda di sana, agar mesin pembuat gambar (Composer) memiliki bahan baku desain yang cukup.</p>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ===== MODAL DRAFT DETAIL WORKSPACE ===== -->
+<div class="modal-overlay" id="draftModal">
+  <div class="modal-box">
+    <div class="modal-header">
+      <div>
+        <h3 id="modalTitle">Review Draft</h3>
+        <div class="msub" id="modalSub">Status: Draft</div>
+      </div>
+      <button class="mclose" id="modalClose">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="draft-content" id="modalBody">Memuat isi konten...</div>
+      <div id="modalImageContainer"></div>
+      <div id="visualPromptContainer" style="display:none; margin-top:16px;"></div>
+    </div>
+    <div class="modal-footer" id="modalActions"></div>
+  </div>
+</div>
+
+<script>
+(function(){
+  // ============================================================
+  // 🔥 KONFIGURASI — PASTIKAN URL & ANON KEY COCOK DENGAN PROJECT
+  // ============================================================
+  const SUPABASE_URL = 'https://eihsgpqquydxbglqlret.supabase.co';
+  const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVpaHNncHFxdXlkeGJnbHFscmV0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI4MTU3MzksImV4cCI6MjA5ODM5MTczOX0.1GB3rw5xKygdqLUhVh4ND6z98CSFraCqSM2hWyTN9ng';
+
+  const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  
+  const rupiah = v => 'Rp' + new Intl.NumberFormat('id').format(v || 0);
+  const esc = s => (s ?? '').toString().replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+  // --- IDENTITY ACCESS CONTEXT ---
+  const loginScreen = document.getElementById('loginScreen');
+  const app = document.getElementById('app');
+  
+  async function checkSession(){
+    try {
+      const { data:{ session } } = await supabase.auth.getSession();
+      if (session){ showApp(session.user.email); } else { showLogin(); }
+    } catch (e) {
+      console.warn('Session check error:', e);
+      showLogin();
+    }
+  }
+  function showApp(email){
+    loginScreen.classList.add('hidden'); app.classList.remove('hidden');
+    document.getElementById('userEmail').innerText = email || '';
+    initApp();
+  }
+  function showLogin(){ loginScreen.classList.remove('hidden'); app.classList.add('hidden'); }
+
+  document.getElementById('loginForm').addEventListener('submit', async e => {
+    e.preventDefault();
+    const btn = document.getElementById('loginBtn');
+    const errEl = document.getElementById('loginErr');
+    const okEl = document.getElementById('loginOk');
+    errEl.style.display = 'none';
+    okEl.style.display = 'none';
+    btn.disabled = true; btn.innerText = 'Mengautentikasi…';
+    try{
+      const { data, error } = await supabase.auth.signInWithPassword({ 
+        email: document.getElementById('email').value.trim(), 
+        password: document.getElementById('password').value.trim() 
+      });
+      if (error) throw error;
+      okEl.innerText = '✅ Login berhasil!';
+      okEl.style.display = 'block';
+      showApp(data.user.email);
+    } catch(e){
+      errEl.innerText = e.message || 'Login gagal. Periksa email dan password.';
+      errEl.style.display = 'block';
+    } finally { btn.disabled=false; btn.innerText='Masuk Sistem'; }
+  });
+  document.getElementById('logoutBtn').addEventListener('click', async () => { 
+    await supabase.auth.signOut(); 
+    showLogin(); 
+    location.reload(); 
+  });
+
+  // --- INTERACTION TABS PROCESSOR ---
+  document.querySelectorAll('.tabbtn').forEach(btn => {
+    btn.addEventListener('click', function(){
+      document.querySelectorAll('.tabbtn').forEach(b=>b.classList.remove('active'));
+      this.classList.add('active');
+      document.querySelectorAll('.tabpanel').forEach(p=>p.classList.remove('active'));
+      document.getElementById('tab-'+this.dataset.tab).classList.add('active');
+      if (this.dataset.tab === 'pengetahuan') loadKnowledge();
+    });
+  });
+
+  // --- ANALYTICS ENGINE DATA STATES ---
+  let allOrders = [], allContent = [], allEntities = [], appInited = false;
+  let chartInstance = null;
+
+  function initApp(){
+    if (appInited) return; appInited = true;
+    loadOrders(); loadPlan(); loadContent(); loadKnowledge();
+  }
+
+  function setStatus(ok, text){
+    const pill = document.getElementById('statusPill');
+    pill.className = 'status-pill' + (ok?'':' err');
+    document.getElementById('statusText').innerText = text;
+  }
+  function showError(msg){
+    const el = document.getElementById('errorBanner');
+    el.style.display='block'; el.innerText = '⚠ ' + msg;
+    setTimeout(() => { el.style.display='none'; }, 6000);
+  }
+
+  // --- QUERY ETL CONNECTIONS ---
+  async function loadOrders(){
+    try{
+      const { data, error } = await supabase.from('orders_sync').select('*').order('created_at',{ascending:false});
+      if (!error) {
+        allOrders = data || [];
+        document.getElementById('statOrders').innerText = allOrders.length;
+        document.getElementById('statRevenue').innerText = rupiah(allOrders.reduce((s,o)=>s+(o.total||0),0));
+        document.getElementById('statPending').innerText = allOrders.filter(o=>o.status==='pending').length;
+        
+        const menuCount = {};
+        allOrders.forEach(o => (o.items||[]).forEach(i => { const n=i.name||i.menu_name||'Rujak'; menuCount[n]=(menuCount[n]||0)+(i.qty||1); }));
+        const top = Object.entries(menuCount).sort((a,b)=>b[1]-a[1])[0];
+        document.getElementById('statTopMenu').innerText = top ? top[0] : '-';
+
+        const today=new Date(); const dates=[], map={};
+        for(let i=6;i>=0;i--){ const d=new Date(today); d.setDate(d.getDate()-i); const k=d.toISOString().slice(0,10); dates.push(k); map[k]=0; }
+        allOrders.forEach(o=>{ const k=(o.created_at||'').slice(0,10); if(map[k]!==undefined) map[k]+=(o.total||0); });
+        renderChart(dates.map(d=>d.slice(5)), Object.values(map));
+      }
+      setStatus(true,'Sistem Terhubung');
+    } catch(e){ setStatus(false,'Koneksi Terputus'); showError('Gagal memuat order: '+e.message); }
+  }
+
+  function renderChart(labels, values){
+    const ctx = document.getElementById('salesChart').getContext('2d');
+    if (chartInstance) chartInstance.destroy();
+    chartInstance = new Chart(ctx,{ 
+      type:'line', 
+      data:{ labels, datasets:[{ data:values, borderColor:'#C1421A', backgroundColor:'rgba(193, 66, 26, 0.1)', fill:true, tension:0.4, pointRadius:4 }] },
+      options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{ y:{beginAtZero:true, grid:{color:'#E4D4BC'}}, x:{grid:{display:false}} } } 
+    });
+  }
+
+  async function loadPlan(){
+    try{
+      const today = new Date().toISOString().slice(0,10);
+      const { data } = await supabase.from('ai_plans').select('*').eq('plan_date',today).order('created_at',{ascending:false}).limit(1);
+      const c = document.getElementById('planContainer');
+      if (!data || data.length===0){ 
+        c.innerHTML = '<p style="color:var(--ink-soft); margin:0;">Belum ada rekomendasi dari AI Planner hari ini.</p>'; 
+        return; 
+      }
+      const p = data[0];
+      document.getElementById('planDate').innerText = p.plan_date || '';
+      c.innerHTML = `
+        <div class="ptitle">🎯 Fokus: <span class="ptarget">${esc(p.target_menu||'-')}</span></div>
+        <p><strong>${esc(p.title||'Rekomendasi Strategi')}</strong><br>${esc(p.recommendation||'-')}</p>
+      `;
+    } catch(e){}
+  }
+
+  async function loadContent(){
+    try{
+      const { data, error } = await supabase.from('content_workflow').select('*').not('draft', 'is', null).order('created_at', { ascending: false });
+      if (error) throw error;
+      allContent = data || [];
+      renderPipeline();
+      renderQueue();
+    } catch(e){ showError('Gagal memuat daftar konten: '+e.message); }
+  }
+
+  // --- RENDERING INTEGRATION LAYERS ---
+  function renderPipeline(){
+    const cols = { draft:[], pending_human:[], scheduled:[], published:[] };
+    allContent.forEach(c => { 
+      const s = (c.status||'draft');
+      if (cols[s]) cols[s].push(c); 
+    });
+    
+    const labels = { draft:'Draf Awal', pending_human:'Pending Review', scheduled:'Siap Tayang', published:'Selesai' };
+    const wrap = document.getElementById('pipelineCols');
+    
+    wrap.innerHTML = Object.keys(cols).map(key => `
+      <div class="pcol"><h4>${labels[key]} <span>${cols[key].length}</span></h4>
+        ${cols[key].length===0 ? '<div style="font-size:12.5px; color:var(--ink-soft); text-align:center; padding:20px 0;">Kosong</div>' : cols[key].map(c => `
+          <div class="pitem" data-open="${c.id}">
+            <div class="ptitle2">${esc(c.title || 'Tanpa judul')}</div>
+            <div class="pslot">${esc(c.slot_type||'-')} ${c.risk_flag?'<span style="color:var(--danger)">⚠</span>':''}</div>
+          </div>`).join('')}
+      </div>`).join('');
+      
+    wrap.querySelectorAll('[data-open]').forEach(el => el.addEventListener('click', () => openDraft(parseInt(el.dataset.open))));
+  }
+
+  function renderQueue(){
+    const items = [];
+    allContent.filter(c=>c.status==='pending_human' || c.status==='draft').forEach(c => items.push({ 
+      id:c.id, tag: c.status==='draft' ? 'Ide Baru' : 'Butuh Review', 
+      title: c.title || 'Draft konten', cls: c.status==='draft' ? 'low' : '' 
+    }));
+    
+    document.getElementById('queueCount').innerText = items.length;
+    const qWrap = document.getElementById('actionQueue');
+    
+    if (items.length===0){ 
+      qWrap.innerHTML = '<div class="empty-state" style="padding:20px; font-weight:600; color:var(--leaf); background:var(--leaf-wash); border:none;">✨ Meja bersih! Tidak ada tugas yang menunggu.</div>'; 
+      return; 
+    }
+    
+    qWrap.innerHTML = items.map(it => `
+      <div class="qcard ${it.cls}">
+        <div class="qmeta" data-open="${it.id}">
+          <div class="qtag">${it.tag}</div>
+          <div class="qtitle">${esc(it.title)}</div>
+        </div>
+        <div class="qactions"><button class="btn primary" data-view="${it.id}">Periksa</button></div>
+      </div>`).join('');
+      
+    qWrap.querySelectorAll('[data-open], [data-view]').forEach(el => el.addEventListener('click', function() {
+      openDraft(parseInt(this.dataset.open || this.dataset.view));
+    }));
+  }
+
+  // --- KNOWLEDGE TAB ---
+  async function loadKnowledge(){
+    try {
+      const { data, error } = await supabase.from('knowledge_entities').select('*').eq('is_active', true).limit(20);
+      if (error) throw error;
+      allEntities = data || [];
+      const tbody = document.getElementById('knowledgeTableBody');
+      const empty = document.getElementById('knowledgeEmpty');
+      if (allEntities.length === 0) {
+        tbody.innerHTML = '';
+        empty.style.display = 'block';
+      } else {
+        empty.style.display = 'none';
+        tbody.innerHTML = allEntities.map(e => `
+          <tr>
+            <td><span style="background:var(--leaf-wash); color:var(--leaf); padding:2px 8px; border-radius:4px; font-size:11px; font-weight:700;">${esc(e.entity_type)}</span></td>
+            <td style="font-weight:600;">${esc(e.name)}</td>
+            <td style="font-size:12px; color:var(--ink-soft);">${esc(JSON.stringify(e.properties).slice(0,50))}</td>
+            <td><button class="btn ghost" style="padding:4px 8px; font-size:11px;">Edit</button></td>
+          </tr>
+        `).join('');
+      }
+    } catch(e) { console.warn('Gagal load knowledge:', e); }
+  }
+
+  // --- COMMAND INTERACTION EVENT LOOP ---
+  document.getElementById('btnRefreshContent').addEventListener('click', loadContent);
+
+  // INSTANT CONTEXT DISPATCH ENGINE
+  document.getElementById('btnInstantGenerate').addEventListener('click', async () => {
+    const btn = document.getElementById('btnInstantGenerate');
+    const originalText = btn.innerText;
+    btn.disabled = true; 
+    btn.innerText = '⏳ AI Sedang Meracik (± 5 Detik)...';
+    
+    try {
+      const res = await fetch(`${SUPABASE_URL}/functions/v1/ai-writer`, {
+        method: 'POST',
+        headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${SUPABASE_ANON_KEY}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ slot_type: 'Instan Multi-Platform' })
+      });
+      
+      const r = await res.json();
+      if (!r.success) throw new Error(r.error || 'Gagal membuat konten.');
+      
+      await loadContent();
+      
+      if (r.saved_id) {
+         openDraft(r.saved_id);
+      } else {
+         alert('Berhasil! Silakan cek kolom Draft.');
+      }
+    } catch(e) {
+      showError(e.message);
+    } finally {
+      btn.disabled = false;
+      btn.innerText = originalText;
+    }
+  });
+
+  // AUTOPILOT DAEMON ORCHESTRATOR
+  document.getElementById('btnOrchestrate').addEventListener('click', async () => {
+    const btn = document.getElementById('btnOrchestrate');
+    btn.disabled = true; btn.innerText = 'Menjadwalkan...';
+    try {
+      const res = await fetch(`${SUPABASE_URL}/functions/v1/ai-orchestrator`, { 
+        method: 'POST', headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` } 
+      });
+      const result = await res.json();
+      if (result.success) {
+        alert('Siklus harian RujakOS telah dimulai di latar belakang. Silakan cek kembali nanti.');
+      } else {
+        alert('Gagal: ' + (result.error || 'Unknown error'));
+      }
+    } catch(e){ showError(e.message); }
+    btn.disabled = false; btn.innerText = 'Jalankan Autopilot';
+  });
+
+  // --- MODAL CONTROLLER & ACTIONS TRIGGER ---
+  const modal = document.getElementById('draftModal');
+  
+  function openDraft(id){
+    const c = allContent.find(x => x.id === id);
+    if (!c) {
+      alert('Konten tidak ditemukan!');
+      return;
+    }
+    
+    document.getElementById('modalTitle').innerText = c.title || 'Konten';
+    document.getElementById('modalSub').innerText = `Tipe: ${c.slot_type||'-'} | Status: ${c.status.toUpperCase()}`;
+    document.getElementById('modalBody').innerText = c.draft || '(Tidak ada teks)';
+    
+    // Gambar
+    const imgCont = document.getElementById('modalImageContainer');
+    imgCont.innerHTML = '';
+    if (c.image_url) {
+       imgCont.innerHTML = `<img src="${c.image_url}" style="width:100%; max-width:400px; border-radius:12px; margin-top:16px; border:1px solid var(--panel-line); display:block;">`;
+    }
+
+    // Visual Prompts
+    const vpContainer = document.getElementById('visualPromptContainer');
+    vpContainer.style.display = 'none';
+    vpContainer.innerHTML = '';
+    if (c.visual_prompt || c.video_prompt) {
+      vpContainer.style.display = 'block';
+      let html = '<div class="visual-prompt-box">';
+      if (c.visual_prompt) {
+        html += `<strong>🎨 Visual Prompt (Midjourney):</strong><pre>${esc(c.visual_prompt)}</pre>`;
+      }
+      if (c.video_prompt) {
+        html += `<strong>🎬 Video Prompt (Runway):</strong><pre>${esc(c.video_prompt)}</pre>`;
+      }
+      html += '</div>';
+      vpContainer.innerHTML = html;
+    }
+
+    const actions = document.getElementById('modalActions'); 
+    actions.innerHTML = '';
+    
+    // Status change buttons
+    if (c.status === 'draft' || c.status === 'pending_human'){
+      const btnSetuju = document.createElement('button'); 
+      btnSetuju.className='btn primary'; btnSetuju.innerText='Simpan & Siap Tayang (Scheduled)';
+      btnSetuju.onclick = () => setStatus_(c.id, 'scheduled', { updated_at:new Date().toISOString() });
+      actions.appendChild(btnSetuju);
+    } 
+    else if (c.status === 'scheduled'){
+      const btnTerbit = document.createElement('button'); 
+      btnTerbit.className='btn primary'; btnTerbit.innerText='Tandai Selesai (Published)';
+      btnTerbit.onclick = () => setStatus_(c.id, 'published', { published_at:new Date().toISOString() });
+      actions.appendChild(btnTerbit);
+    }
+
+    // ============================================================
+    // TOMBOL "RAKIT VISUAL PROMOSI" — MEMANGGIL compose-image
+    // ============================================================
+    const btnGambar = document.createElement('button');
+    btnGambar.className = 'btn ghost';
+    btnGambar.innerText = '🎨 Rakit Visual Promosi';
+    btnGambar.onclick = async () => {
+      console.log('📤 Data konten modal:', c);
+      console.log('📤 content_id:', c.id);
+
+      if (!c.id && c.id !== 0) {
+        alert('❌ Error: Konten tidak memiliki ID yang valid!');
+        return;
+      }
+
+      btnGambar.disabled = true;
+      btnGambar.innerText = '⏳ Memproses Desain...';
+      try {
+        const payload = {
+          content_id: c.id,
+          headline: c.title || 'Rujak Premium',
+          menu_name: c.target_menu || 'Rujak Segar'
+        };
+        console.log('📤 Payload yang dikirim:', payload);
+
+        const res = await fetch(`${SUPABASE_URL}/functions/v1/compose-image`, {
+          method: 'POST',
+          headers: {
+            'apikey': SUPABASE_ANON_KEY,
+            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(payload)
+        });
+
+        if (!res.ok) {
+          const errorText = await res.text();
+          console.error('❌ Response error:', res.status, errorText);
+          throw new Error(`HTTP ${res.status}: ${errorText}`);
+        }
+
+        const result = await res.json();
+        if (!result.success) throw new Error(result.error || 'Gagal membuat gambar');
+
+        const imgCont2 = document.getElementById('modalImageContainer');
+        imgCont2.innerHTML = `<img src="${result.image_url}" style="width:100%; max-width:400px; border-radius:12px; margin-top:16px; border:1px solid var(--panel-line); display:block;">`;
+        btnGambar.style.display = 'none';
+        loadContent();
+      } catch (e) {
+        console.error('❌ Error detail:', e);
+        alert('Gagal membuat gambar: ' + e.message);
+        btnGambar.disabled = false;
+        btnGambar.innerText = '🎨 Rakit Visual Promosi';
+      }
+    };
+    actions.appendChild(btnGambar);
+
+    // --- TOMBOL GENERATE VISUAL PROMPTS ---
+    const visualBtn = document.createElement('button');
+    visualBtn.className = 'btn ghost';
+    visualBtn.style.borderColor = '#6B3FA0';
+    visualBtn.style.color = '#6B3FA0';
+    visualBtn.innerText = '🎨 Generate Visual Prompts';
+    visualBtn.onclick = async () => {
+      visualBtn.disabled = true;
+      visualBtn.innerText = '⏳ Generating...';
+      try {
+        const res = await fetch(`${SUPABASE_URL}/functions/v1/ai-visual-prompts`, {
+          method: 'POST',
+          headers: {
+            'apikey': SUPABASE_ANON_KEY,
+            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ content_id: c.id })
+        });
+        const result = await res.json();
+        if (!result.success) throw new Error(result.error);
+        if (result.updated_draft) {
+          document.getElementById('modalBody').innerText = result.updated_draft;
+        }
+        if (result.visual_prompt || result.video_visual_prompt) {
+          const vp = document.getElementById('visualPromptContainer');
+          vp.style.display = 'block';
+          vp.innerHTML = `<div class="visual-prompt-box">
+            <strong>🎨 Visual Prompt (Midjourney):</strong><pre>${esc(result.visual_prompt || '-')}</pre>
+            <strong>🎬 Video Prompt (Runway):</strong><pre>${esc(result.video_visual_prompt || '-')}</pre>
+          </div>`;
+        }
+        await loadContent();
+        alert('✅ Visual prompts berhasil ditambahkan!');
+      } catch (e) {
+        alert('Gagal: ' + e.message);
+      }
+      visualBtn.disabled = false;
+      visualBtn.innerText = '🎨 Generate Visual Prompts';
+    };
+    actions.appendChild(visualBtn);
+
+    modal.classList.add('active');
+  }
+
+  async function setStatus_(id, status, extra){
+    try{
+      await supabase.from('content_workflow').update({ status, ...extra }).eq('id', id);
+      modal.classList.remove('active');
+      loadContent();
+    } catch(e){ showError(e.message); }
+  }
+  
+  document.getElementById('modalClose').addEventListener('click', () => modal.classList.remove('active'));
+  modal.addEventListener('click', e => { if (e.target === modal) modal.classList.remove('active'); });
+
+  checkSession();
+})();
+</script>
+</body>
+</html>
