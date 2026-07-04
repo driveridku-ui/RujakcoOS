@@ -1,0 +1,1082 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>RujakOS — Command Center</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+<script src="https://unpkg.com/@phosphor-icons/web"></script>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+
+<style>
+  :root{
+    /* Palet Organik F&B (Dari V3) */
+    --paper: #FBF6EE; 
+    --panel: #F3E8D8; 
+    --panel-line: #E4D4BC; 
+    --ink: #2B2320; 
+    --ink-soft: #7A6C5F; 
+    
+    /* Aksen */
+    --chili: #C1421A; 
+    --chili-dark: #8F3013; 
+    --chili-wash: #F7E3DA;
+    --gold: #B37B22; 
+    --gold-wash: #F3E6CC;
+    --leaf: #3F6B4A; 
+    --leaf-wash: #E4EEE3; 
+    --leaf-dark: #284B31;
+    --danger: #B23A2E; 
+    --danger-wash: #FBEAE7;
+  }
+  
+  *{box-sizing:border-box;}
+  
+  body{ 
+    margin:0; background:var(--paper); color:var(--ink); 
+    font-family: 'Plus Jakarta Sans', system-ui, sans-serif; 
+    -webkit-font-smoothing: antialiased; 
+    letter-spacing: -0.01em;
+  }
+  
+  h1,h2,h3,h4,.display{ 
+    font-family: 'Plus Jakarta Sans', sans-serif; 
+    letter-spacing: -0.03em; 
+  }
+  
+  .hidden{ display:none !important; }
+  .wrap{ max-width:1100px; margin:0 auto; padding:20px 16px 96px; }
+
+  /* ===== TOAST NOTIFICATIONS ===== */
+  #toastContainer { position: fixed; bottom: 24px; right: 24px; z-index: 9999; display: flex; flex-direction: column; gap: 10px; pointer-events: none;}
+  .toast { background: var(--ink); color: #fff; padding: 14px 20px; border-radius: 12px; font-size: 13.5px; font-weight: 500; box-shadow: 0 10px 30px rgba(0,0,0,0.15); animation: slideUp 0.3s ease; pointer-events: auto; display: flex; align-items: center; gap: 10px; letter-spacing: 0;}
+  .toast i { font-size: 18px; }
+  .toast.error { background: var(--danger); }
+  .toast.success { background: var(--leaf); }
+  @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+
+  /* ===== LOGIN SCREEN ===== */
+  .login-screen{ min-height:100vh; display:flex; align-items:center; justify-content:center; padding:20px; background: var(--paper); }
+  .login-card{ background:#fff; border:1px solid var(--panel-line); border-radius:18px; padding:40px 32px; max-width:380px; width:100%; box-shadow: 0 10px 30px rgba(0,0,0,0.05); }
+  .login-card .mark{ width:48px; height:48px; border-radius:12px; background:var(--chili); display:flex; align-items:center; justify-content:center; font-size:24px; color:#fff; margin:0 auto 20px; }
+  .login-card h1{ text-align:center; font-size:24px; margin:0 0 6px; }
+  .login-card p.sub{ text-align:center; color:var(--ink-soft); font-size:13.5px; margin:0 0 28px; }
+  .field{ margin-bottom:16px; }
+  .field label{ font-size:12px; font-weight:600; display:block; margin-bottom:8px; color:var(--ink); text-transform: uppercase; letter-spacing: 0.05em; }
+  .field input, .field select{ width:100%; padding:12px 14px; border:1px solid var(--panel-line); border-radius:10px; font-size:14px; font-family:inherit; background:var(--paper); transition: 0.2s; outline:none; }
+  .field input:focus, .field select:focus{ border-color:var(--chili); box-shadow: 0 0 0 3px var(--chili-wash); }
+  .btn-full{ width:100%; padding:12px; border-radius:10px; font-weight:700; font-size:14px; cursor:pointer; }
+  .login-msg{ font-size:12.5px; padding:12px 14px; border-radius:8px; margin-bottom:16px; display:none; font-weight:500; display:flex; align-items:center; gap:8px;}
+  .login-msg.err{ background:var(--danger-wash); color:var(--danger); border:1px solid #E8B8AE; }
+  .login-msg.ok{ background:var(--leaf-wash); color:var(--leaf); border:1px solid #C8E6C9; }
+
+  /* ===== APP HEADER ===== */
+  .app-header{ padding-top:4px; margin-bottom:16px; }
+  .app-header-top{ display:flex; justify-content:space-between; align-items:flex-start; gap:12px; }
+  .greeting{ font-size:21px; font-weight:800; color:var(--ink); margin-bottom:8px; line-height:1.2; display:flex; align-items:center; gap:8px;}
+  .app-header-actions{ display:flex; gap:8px; flex:none; }
+  .icon-btn{ width:40px; height:40px; border-radius:12px; background:#fff; border:1px solid var(--panel-line); display:flex; align-items:center; justify-content:center; font-size:20px; cursor:pointer; transition:0.2s; color:var(--ink); outline:none;}
+  .icon-btn:hover{ background:var(--paper); border-color:var(--ink-soft);}
+
+  .status-pill{ font-size:11px; font-weight:700; padding:6px 12px; border-radius:99px; background:var(--leaf-wash); color:var(--leaf-dark); display:inline-flex; align-items:center; gap:6px; border: 1px solid #C8E6C9; }
+  .status-pill.err{ background:var(--danger-wash); color:var(--danger); border-color:#E8B8AE;}
+  .status-pill .dot{ width:6px; height:6px; border-radius:99px; background:currentColor; animation: pulse 2s infinite; }
+  @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.4; } 100% { opacity: 1; } }
+
+  /* ===== HERO BANNER ===== */
+  .hero-banner{ background: linear-gradient(135deg, var(--chili) 0%, var(--chili-dark) 100%); color:#fff; border-radius:20px; padding:24px; margin-bottom:16px; box-shadow: 0 10px 24px rgba(193,66,26,0.25); }
+  .hero-banner .ptitle{ font-size:13px; font-weight:700; display:flex; align-items:center; gap:8px; margin-bottom:12px; color:rgba(255,255,255,0.8); text-transform: uppercase; letter-spacing: 0.05em;}
+  .hero-banner .ptarget{ background:rgba(255,255,255,0.2); color:#fff; font-size:11px; font-weight:800; padding:4px 10px; border-radius:8px; letter-spacing:0.02em; border: 1px solid rgba(255,255,255,0.1);}
+  .hero-banner p{ font-size:15px; line-height:1.6; margin:0; color:rgba(255,255,255,0.95); }
+  .hero-banner strong{ color:#fff; font-weight:700;}
+
+  /* ===== QUICK SEARCH ===== */
+  .quick-search{ display:flex; align-items:center; gap:12px; background:#fff; border:1px solid var(--panel-line); border-radius:14px; padding:12px 16px; margin-bottom:20px; transition: 0.2s; box-shadow: 0 2px 8px rgba(0,0,0,0.03); }
+  .quick-search:focus-within{ border-color:var(--chili); box-shadow: 0 0 0 3px var(--chili-wash); }
+  .quick-search .qs-icon{ color:var(--ink-soft); font-size:18px; display:flex;}
+  .quick-search input{ border:none; outline:none; flex:1; font-size:14px; font-family:inherit; background:transparent; color:var(--ink); }
+  .quick-search input::placeholder{ color:var(--ink-soft); }
+
+  /* ===== QUICK ACCESS GRID ===== */
+  .quick-grid{ display:grid; grid-template-columns:repeat(4,1fr); gap:16px 8px; margin-bottom:32px; }
+  .quick-item{ display:flex; flex-direction:column; align-items:center; gap:8px; background:none; border:none; cursor:pointer; font-family:inherit; padding:4px; outline:none; }
+  .qi-icon{ width:52px; height:52px; border-radius:16px; display:flex; align-items:center; justify-content:center; font-size:24px; transition:all 0.2s ease; border: 1px solid var(--panel-line); background: #fff; color: var(--ink); box-shadow: 0 2px 8px rgba(0,0,0,0.02); }
+  .quick-item:hover .qi-icon{ transform:translateY(-2px); border-color: var(--ink-soft); box-shadow: 0 6px 16px rgba(0,0,0,0.06);}
+  .quick-item span{ font-size:11.5px; font-weight:700; color:var(--ink-soft); text-align:center; line-height:1.2; transition: 0.2s;}
+  .quick-item:hover span{ color:var(--ink); }
+
+  .tabpanel{ display:none; animation: fadeIn 0.3s ease-in-out; }
+  .tabpanel.active{ display:block; }
+
+  /* ===== BOTTOM NAV ===== */
+  .bottom-nav{ position:fixed; bottom:0; left:0; right:0; background:rgba(255,255,255,0.95); backdrop-filter: blur(12px); border-top:1px solid var(--panel-line); display:flex; justify-content:space-around; padding:8px 4px calc(8px + env(safe-area-inset-bottom, 0px)); z-index:500; }
+  .navbtn{ background:none; border:none; display:flex; flex-direction:column; align-items:center; gap:4px; font-family:inherit; font-size:10.5px; font-weight:700; color:var(--ink-soft); cursor:pointer; padding:6px 12px; border-radius:10px; transition:0.2s; outline:none; }
+  .navbtn .nav-icon{ font-size:24px; line-height:1; margin-bottom:2px;}
+  .navbtn.active{ color:var(--chili); }
+  .navbtn:hover{ background:var(--paper); }
+
+  .section-wrap{ background:#fff; border:1px solid var(--panel-line); border-radius:20px; padding:24px; margin-bottom:24px; box-shadow: 0 2px 12px rgba(0,0,0,0.02); }
+  .section-header{ display:flex; align-items:center; justify-content:space-between; margin-bottom:20px; border-bottom:1px solid var(--panel-line); padding-bottom:16px;}
+  .section-header h2{ font-size:17px; font-weight:800; margin:0; color:var(--ink); display:flex; align-items:center; gap:8px; }
+  .section-header .sub{ font-size:12px; color:var(--ink-soft); font-weight: 600;}
+
+  .pulse-grid{ display:grid; grid-template-columns:repeat(4,1fr); gap:16px; }
+  .stat{ background:var(--paper); border:1px solid var(--panel-line); border-radius:14px; padding:16px; display:flex; flex-direction:column; gap:8px; text-align:center;}
+  .stat .label{ font-size:11px; color:var(--ink-soft); font-weight:700; text-transform:uppercase; letter-spacing:0.05em;}
+  .stat .value{ font-size:26px; font-weight:800; color:var(--chili); font-variant-numeric: tabular-nums; letter-spacing: -0.02em;}
+  .chart-area{ margin-top:24px; padding-top:20px; border-top:1px dashed var(--panel-line); }
+
+  .control-grid{ display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+  .control-card{ border-radius:16px; padding:24px; display:flex; flex-direction:column; justify-content:space-between; gap:16px; background:#fff; border:1px solid var(--panel-line); box-shadow: 0 2px 12px rgba(0,0,0,0.02); }
+  .control-card .cc-icon{ width:44px; height:44px; border-radius:12px; display:flex; align-items:center; justify-content:center; font-size:22px; margin-bottom:4px; border: 1px solid var(--panel-line); }
+
+  .cc-instant .cc-icon{ background: var(--leaf-wash); color: var(--leaf-dark); border-color: #C8E6C9;}
+  .cc-instant h3{ font-size:16px; margin:0 0 8px; color:var(--ink); font-weight:800;}
+  .cc-instant p{ font-size:13.5px; color:var(--ink-soft); margin:0; line-height:1.6;}
+
+  .cc-auto .cc-icon{ background: var(--panel); color: var(--ink); border-color: var(--panel-line);}
+  .cc-auto h3{ font-size:16px; margin:0 0 8px; color:var(--ink); font-weight:800;}
+  .cc-auto p{ font-size:13.5px; color:var(--ink-soft); margin:0; line-height:1.6;}
+
+  .btn-trigger{ border:none; padding:14px 20px; border-radius:10px; font-weight:700; font-size:13.5px; cursor:pointer; width:100%; transition:0.2s; font-family:inherit; display: flex; align-items: center; justify-content: center; gap: 8px; outline:none;}
+  .btn-trigger.primary { background: var(--leaf); color: #fff; border: 1px solid var(--leaf); }
+  .btn-trigger.primary:hover { background: var(--leaf-dark); }
+  .btn-trigger.secondary { background: var(--ink); color: #fff; border: 1px solid var(--ink); }
+  .btn-trigger.secondary:hover { background: #1a1513; }
+  .btn-trigger:disabled{ opacity:0.6; cursor:not-allowed; }
+
+  .queue-header{ display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; }
+  .queue-header h3{ font-size:15px; margin:0; display:flex; align-items:center; gap:8px;}
+  .queue-header .badge{ background:var(--chili); color:#fff; font-size:11px; font-weight:700; padding:2px 8px; border-radius:8px;}
+  
+  .qcard{ background:#fff; border:1px solid var(--panel-line); border-radius:12px; padding:16px; margin-bottom:12px; display:flex; justify-content:space-between; align-items:center; gap:16px; transition:0.2s; cursor:pointer; box-shadow: 0 1px 4px rgba(0,0,0,0.02);}
+  .qcard:hover{ border-color:var(--chili-wash); box-shadow: 0 4px 12px rgba(193,66,26,0.08);}
+  .qcard .qtag{ font-size:11px; font-weight:700; color:var(--gold); margin-bottom:6px; display:flex; align-items:center; gap:4px; text-transform:uppercase; letter-spacing:0.05em;}
+  .qcard.risk .qtag{ color:var(--danger); }
+  .qcard.low .qtag{ color:var(--leaf); }
+  .qcard .qtitle{ font-size:14.5px; font-weight:700; margin:0; color:var(--ink); line-height:1.4;}
+  
+  .pipeline{ display:grid; grid-template-columns:repeat(4,1fr); gap:16px; margin-top:24px; padding-top:24px; border-top:1px solid var(--panel-line); }
+  .pcol{ background:var(--paper); border-radius:12px; padding:14px; border:1px solid var(--panel-line); display:flex; flex-direction:column; gap:10px;}
+  .pcol h4{ font-size:12px; font-weight:800; color:var(--ink-soft); margin:0 0 8px; display:flex; justify-content:space-between; padding:0 4px; text-transform:uppercase; letter-spacing:0.05em;}
+  
+  .pitem{ background:#fff; border-radius:10px; padding:14px; border:1px solid var(--panel-line); cursor:pointer; transition:all 0.2s ease; box-shadow: 0 2px 6px rgba(0,0,0,0.02); }
+  .pitem:hover{ border-color:var(--chili-wash); box-shadow: 0 6px 14px rgba(193,66,26,0.08); transform:translateY(-2px); }
+  .pitem .ptitle2{ font-size:13.5px; font-weight:700; margin-bottom:6px; line-height:1.4; color:var(--ink);}
+  .pitem .pslot{ font-size:11px; color:var(--ink-soft); display:flex; align-items:center; gap:4px; font-weight:600; }
+
+  .skeleton { background: var(--panel-line); border-radius: 6px; height: 16px; width: 100%; display: block; margin-bottom: 8px; animation: shimmer 1.5s infinite; }
+  .skeleton.short { width: 60%; }
+  @keyframes shimmer { 0% { opacity: 0.4; } 50% { opacity: 0.8; } 100% { opacity: 0.4; } }
+
+  .table-responsive { overflow-x: auto; width: 100%; }
+  .data-table{ width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 13.5px; min-width: 600px;}
+  .data-table th{ background: var(--paper); border-bottom: 2px solid var(--panel-line); padding: 12px; text-align: left; font-weight: 700; color: var(--ink-soft); font-size: 11px; text-transform: uppercase; letter-spacing:0.05em;}
+  .data-table td{ border-bottom: 1px solid var(--panel-line); padding: 14px 12px; color: var(--ink); }
+  .empty-state{ padding: 40px 20px; text-align: center; color: var(--ink-soft); background: var(--paper); border: 1px dashed var(--panel-line); border-radius: 12px; margin-top: 16px; font-size:13.5px; display:flex; flex-direction:column; align-items:center; gap:8px; font-weight:600;}
+  .empty-state i { font-size: 28px; opacity: 0.7; color:var(--gold);}
+  
+  .guide-box{ background: var(--paper); border-radius: 12px; padding: 20px; border-left: 4px solid var(--leaf); margin-bottom: 16px; }
+  .guide-box h4{ margin: 0 0 8px; font-size: 15px; font-weight:700; color: var(--ink); }
+  .guide-box p{ margin: 0; font-size: 13.5px; color: var(--ink-soft); line-height: 1.6; }
+
+  .btn{ font-family:inherit; font-size:13px; font-weight:700; padding:10px 18px; border-radius:10px; border:1px solid transparent; cursor:pointer; white-space:nowrap; transition:0.2s; outline: none; display:inline-flex; align-items:center; gap:6px; justify-content:center;}
+  .btn.primary{ background:var(--chili); color:#fff; }
+  .btn.primary:hover{ background:var(--chili-dark); }
+  .btn.ghost{ background:transparent; color:var(--ink); border-color:var(--panel-line); }
+  .btn.ghost:hover{ background:var(--paper); border-color: var(--ink-soft); }
+  .btn.danger{ background:#fff; color:var(--danger); border-color:#E8B8AE; }
+  .btn.danger:hover{ background:var(--danger-wash); border-color:var(--danger); }
+  .btn:disabled{ opacity:.5; cursor:not-allowed; }
+
+  /* ===== MODALS (MENGGABUNGKAN MULTI-TAB V2 & UI V3) ===== */
+  .modal-overlay{ position:fixed; inset:0; background:rgba(43,35,32,0.6); display:none; align-items:center; justify-content:center; z-index:999; padding:16px; backdrop-filter: blur(4px); }
+  .modal-overlay.active{ display:flex; animation: fadeIn 0.2s ease; }
+  .modal-box{ background:#fff; border-radius:24px; max-width:700px; width:100%; max-height:90vh; display:flex; flex-direction:column; position:relative; box-shadow: 0 20px 40px rgba(0,0,0,0.15); overflow: hidden; border: 1px solid var(--panel-line);}
+  .modal-header{ padding:20px 24px; border-bottom:1px solid var(--panel-line); display:flex; justify-content:space-between; align-items:flex-start; background: #fff;}
+  .modal-header h3{ font-size:18px; font-weight:800; margin:0 0 4px; display:flex; align-items:center; gap:8px;}
+  .modal-header .msub{ font-size:12.5px; color:var(--ink-soft); font-weight:600;}
+  .mclose{ background:none; border:none; font-size:24px; cursor:pointer; color:var(--ink-soft); line-height:1; padding:4px; margin-top:-4px; border-radius:8px; transition:0.2s;}
+  .mclose:hover{ background:var(--paper); color:var(--danger); }
+  .modal-body{ padding:24px; overflow-y:auto; flex:1; background: #fff;}
+  
+  .draft-tabs { display: flex; gap: 8px; margin-bottom: 16px; overflow-x: auto; padding-bottom: 4px; }
+  .draft-tabs::-webkit-scrollbar { height: 0px; }
+  .d-tab { background: var(--paper); border: 1px solid var(--panel-line); color: var(--ink-soft); font-weight: 700; font-size: 13px; padding: 10px 18px; border-radius: 12px; cursor: pointer; transition: 0.2s; white-space: nowrap; display:flex; align-items:center; gap:6px;}
+  .d-tab.active { background: var(--chili); color: #fff; border-color: var(--chili); }
+  
+  .draft-pane { display: none; }
+  .draft-pane.active { display: block; animation: fadeIn 0.2s; }
+  
+  .draft-pane-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+  .draft-pane-header span { font-size: 12px; font-weight: 800; color: var(--ink-soft); text-transform:uppercase; letter-spacing:0.05em;}
+  
+  .draft-content{ 
+    width:100%; resize:none; overflow:hidden;
+    font-size:14.5px; line-height:1.7; 
+    background:var(--paper); border:1px solid var(--panel-line); border-radius:14px; 
+    padding:18px; font-family:inherit; color:var(--ink); 
+    outline:none; transition:0.2s;
+  }
+  .draft-content:focus { background:#fff; border-color: var(--chili); box-shadow: 0 0 0 3px var(--chili-wash); }
+  
+  .prompt-cards-container { margin-top: 24px; border-top: 1px solid var(--panel-line); padding-top: 24px; }
+  .prompt-card { background: var(--paper); border: 1px solid var(--panel-line); border-radius: 14px; padding: 16px; margin-bottom: 12px; }
+  .prompt-card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+  .prompt-card-header .p-title { font-weight: 700; color: var(--ink); font-size: 13.5px; display: flex; align-items: center; gap: 6px; }
+  .prompt-card pre { white-space: pre-wrap; font-size: 13.5px; font-family: monospace; margin: 0; color: var(--ink-soft); line-height: 1.6; }
+  
+  .modal-footer{ padding:20px 24px; border-top:1px solid var(--panel-line); display:flex; gap:12px; justify-content:flex-end; flex-wrap:wrap; background:#faf8f5; }
+
+  .form-modal .modal-box{ max-width:440px; }
+  
+  @media (max-width:860px){
+    .control-grid, .pulse-grid{ grid-template-columns:1fr 1fr; }
+    .pipeline{ grid-template-columns:1fr 1fr; }
+  }
+  @media (max-width:560px){
+    .pulse-grid, .control-grid{ grid-template-columns:1fr; }
+    .pipeline { display: flex; flex-wrap: nowrap; overflow-x: auto; scroll-snap-type: x mandatory; padding-bottom: 12px; scroll-padding: 0 16px; margin-left:-16px; margin-right:-16px; padding-left:16px; padding-right:16px;}
+    .pipeline::-webkit-scrollbar { height: 0px; }
+    .pcol { min-width: 280px; scroll-snap-align: start; flex: 0 0 auto; }
+    .qcard{ flex-direction:column; align-items:flex-start; } .qcard .qactions{ width:100%; } .qcard .qactions .btn{ flex:1; width:100%; text-align:center;}
+    .modal-footer { flex-direction: column; gap: 10px; padding: 16px; }
+    .modal-footer .btn { width: 100%; justify-content: center; }
+  }
+</style>
+</head>
+<body>
+
+<div id="toastContainer"></div>
+
+<div class="login-screen" id="loginScreen">
+  <div class="login-card">
+    <div class="mark"><i class="ph-fill ph-fire"></i></div>
+    <h1>RujakOS</h1>
+    <p class="sub">Log in ke Command Center</p>
+    <div class="login-msg err" id="loginErr"></div>
+    <div class="login-msg ok" id="loginOk"></div>
+    <form id="loginForm">
+      <div class="field"><label>Email</label><input type="email" id="email" required placeholder="admin@rujak.co" /></div>
+      <div class="field"><label>Password</label><input type="password" id="password" required placeholder="••••••••" /></div>
+      <button type="submit" class="btn primary btn-full" id="loginBtn">Masuk Sistem</button>
+    </form>
+  </div>
+</div>
+
+<div class="wrap hidden" id="app">
+
+  <div class="app-header">
+    <div class="app-header-top">
+      <div>
+        <div class="greeting">Hai, <span id="greetName">Admin</span> <i class="ph-fill ph-hand-waving" style="color:var(--gold);"></i></div>
+        <div class="status-pill ok" id="statusPill"><span class="dot"></span><span id="statusText">Sistem Terhubung</span></div>
+      </div>
+      <div class="app-header-actions">
+        <button class="icon-btn" id="btnHeaderSettings" title="Pengaturan" data-tab="pengaturan"><i class="ph ph-gear-six"></i></button>
+        <button class="icon-btn" id="logoutBtn" title="Keluar"><i class="ph ph-sign-out"></i></button>
+      </div>
+    </div>
+    <div class="email" id="userEmail" style="display:none;"></div>
+  </div>
+
+  <div class="hero-banner" id="planContainer">
+    <p style="color:rgba(255,255,255,0.7); font-size:14px; margin:0;"><i class="ph ph-spinner-gap ph-spin"></i> Memuat AI Compass...</p>
+  </div>
+
+  <div class="quick-search">
+    <span class="qs-icon"><i class="ph ph-magnifying-glass"></i></span>
+    <input type="text" id="quickSearch" placeholder="Cari ide konten, aset pengetahuan...">
+  </div>
+
+  <div class="quick-grid">
+    <button class="quick-item" data-tab="dashboard"><div class="qi-icon"><i class="ph ph-squares-four"></i></div><span>Dashboard</span></button>
+    <button class="quick-item" data-scroll="ideaArchiveSection"><div class="qi-icon"><i class="ph ph-archive"></i></div><span>Arsip Ide</span></button>
+    <button class="quick-item" id="quickInstant"><div class="qi-icon"><i class="ph ph-magic-wand"></i></div><span>Buat Instan</span></button>
+    <button class="quick-item" id="quickOrchestrate"><div class="qi-icon"><i class="ph ph-robot"></i></div><span>Autopilot</span></button>
+    <button class="quick-item" data-tab="pengetahuan"><div class="qi-icon"><i class="ph ph-brain"></i></div><span>Brain</span></button>
+    <button class="quick-item" data-tab="laporan"><div class="qi-icon"><i class="ph ph-chart-line-up"></i></div><span>Laporan</span></button>
+    <button class="quick-item" data-tab="pengaturan"><div class="qi-icon"><i class="ph ph-sliders"></i></div><span>Pengaturan</span></button>
+    <button class="quick-item" data-tab="panduan"><div class="qi-icon"><i class="ph ph-book-open-text"></i></div><span>Panduan</span></button>
+  </div>
+
+  <div class="tabpanel active" id="tab-dashboard">
+
+    <div class="section-wrap">
+      <div class="section-header">
+        <h2><i class="ph ph-activity"></i> Denyut Bisnis</h2><span class="sub">7 hari terakhir</span>
+      </div>
+      <div class="pulse-grid">
+        <div class="stat"><div class="label">Total Order</div><div class="value" id="statOrders">0</div></div>
+        <div class="stat"><div class="label">Pendapatan</div><div class="value" id="statRevenue">Rp0</div></div>
+        <div class="stat"><div class="label">Pending</div><div class="value" id="statPending">0</div></div>
+        <div class="stat"><div class="label">Top Menu</div><div class="value" id="statTopMenu" style="font-size:16px; line-height:1.4;">-</div></div>
+      </div>
+      <div class="chart-area"><canvas id="salesChart" height="70"></canvas></div>
+    </div>
+
+    <div class="section-wrap" style="background:transparent; border:none; padding:0; box-shadow:none;">
+      <div class="control-grid">
+        <div class="control-card">
+          <div>
+            <div class="cc-icon cc-instant"><i class="ph ph-magic-wand"></i></div>
+            <h3>Generator Instan</h3>
+            <p>Hasilkan ide konten segar untuk TikTok, Instagram, & Threads dalam satu klik. (Anti-Repetisi aktif).</p>
+          </div>
+          <button class="btn-trigger primary" id="btnInstantGenerate"><i class="ph-fill ph-lightning"></i> Buat Sekarang</button>
+        </div>
+        <div class="control-card">
+          <div>
+            <div class="cc-icon cc-auto"><i class="ph ph-robot"></i></div>
+            <h3>Siklus Autopilot</h3>
+            <p>Delegasikan tugas ke AI. Sistem merencanakan dan menulis batch konten di latar belakang.</p>
+          </div>
+          <button class="btn-trigger secondary" id="btnOrchestrate"><i class="ph ph-play-circle"></i> Jalankan Autopilot</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="section-wrap" id="ideaArchiveSection">
+      <div class="section-header">
+        <h2><i class="ph ph-archive"></i> Arsip Ide Mentah</h2>
+        <button class="btn ghost" id="btnRefreshContent" style="padding:6px 12px; font-size:12px;"><i class="ph ph-arrows-clockwise"></i> Sync</button>
+      </div>
+      <p style="font-size:13px; color:var(--ink-soft); margin:-12px 0 16px;">Ide mentah dari AI. Buka untuk disetujui agar pindah ke Alur Terstruktur.</p>
+
+      <div class="queue-header">
+        <h3>Belum Diproses <span class="badge" id="queueCount">0</span></h3>
+      </div>
+      <div id="actionQueue">
+        <div class="empty-state" style="padding:20px;">
+          <div class="skeleton"></div><div class="skeleton short"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section-wrap">
+      <div class="section-header">
+        <h2><i class="ph ph-kanban"></i> Alur Terstruktur <span style="font-size:10px; font-weight:700; background:var(--leaf-wash); color:var(--leaf-dark); padding:2px 8px; border-radius:6px; margin-left:8px; border:1px solid #C8E6C9;">Live Sync</span></h2>
+      </div>
+      <p style="font-size:13px; color:var(--ink-soft); margin:-12px 0 16px;">Konten yang sudah disetujui, berjalan menuju tayang.</p>
+
+      <div class="pipeline" id="pipelineCols">
+        <div class="pcol"><h4>Draf Awal <span>0</span></h4><div class="skeleton"></div></div>
+        <div class="pcol"><h4>Pending Review <span>0</span></h4></div>
+        <div class="pcol"><h4>Siap Tayang <span>0</span></h4></div>
+        <div class="pcol"><h4>Selesai <span>0</span></h4></div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="tabpanel" id="tab-pengetahuan">
+    <div class="section-wrap">
+      <div class="section-header">
+        <h2><i class="ph ph-brain"></i> Database Pengetahuan AI</h2>
+        <button class="btn primary" id="btnAddKnowledge" style="padding:8px 14px; font-size:12px;"><i class="ph ph-plus"></i> Tambah Aset</button>
+      </div>
+      <p style="font-size:13px; color:var(--ink-soft); margin-top:-10px; margin-bottom:20px;">Informasi ini akan diakses AI sebagai referensi saat menulis naskah atau membuat visual.</p>
+      
+      <div class="table-responsive">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Entitas</th>
+              <th>Nama Aset</th>
+              <th>Properti</th>
+              <th>Aksi</th>
+            </tr>
+          </thead>
+          <tbody id="knowledgeTableBody"></tbody>
+        </table>
+      </div>
+      <div class="empty-state" id="knowledgeEmpty">
+        <i class="ph ph-database"></i>
+        <span>Belum ada data pengetahuan yang ditambahkan.</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="tabpanel" id="tab-laporan">
+    <div class="section-wrap">
+      <div class="section-header"><h2><i class="ph ph-chart-bar"></i> Audit AI Evaluator</h2></div>
+      <p style="font-size:13.5px; color:var(--ink-soft);">Rekapitulasi otomatis dari keputusan strategi AI dan performa konten selama sepekan terakhir.</p>
+      <div class="empty-state"><i class="ph ph-clock-countdown"></i><span>Laporan mingguan sedang dikalkulasi. Silakan kembali lagi nanti.</span></div>
+    </div>
+  </div>
+
+  <div class="tabpanel" id="tab-pengaturan">
+    <div class="section-wrap">
+      <div class="section-header"><h2><i class="ph ph-sliders"></i> Konfigurasi Sistem</h2></div>
+      <div style="max-width:500px;">
+        <div class="field"><label>URL Database (Supabase)</label><input type="text" value="https://eihsgpqquydxbglqlret.supabase.co" readonly style="opacity:0.6; cursor:not-allowed;"></div>
+        <div class="field"><label>Target Konten per Hari (Default)</label><input type="number" id="settingTargetPerDay" value="3" min="1"></div>
+        <button class="btn primary" id="btnSaveSettings"><i class="ph ph-floppy-disk"></i> Simpan Pengaturan</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="tabpanel" id="tab-panduan">
+    <div class="section-wrap">
+      <div class="section-header"><h2><i class="ph ph-book-open-text"></i> Panduan RujakOS</h2></div>
+      <div class="guide-box"><h4>1. Mode Generator Super Instan</h4><p>Gunakan tombol ini jika Anda butuh konten "saat ini juga". Sistem akan memotong antrean, menulis draf untuk 3 platform sekaligus.</p></div>
+      <div class="guide-box"><h4>2. Buat Gambar Otomatis</h4><p>Setelah Anda menyetujui teks Draf, tekan tombol <strong>"Rakit Visual"</strong>. Sistem akan mengambil foto dari Tab Pengetahuan.</p></div>
+      <div class="guide-box"><h4>3. Pengelolaan Pengetahuan</h4><p>Pastikan Anda memasukkan URL Foto Produk Anda di tab Brain agar AI memiliki referensi akurat.</p></div>
+    </div>
+  </div>
+
+</div>
+
+<nav class="bottom-nav hidden" id="bottomNav">
+  <button class="navbtn active" data-tab="dashboard"><i class="ph-fill ph-squares-four nav-icon"></i>Dashboard</button>
+  <button class="navbtn" data-tab="pengetahuan"><i class="ph-fill ph-brain nav-icon"></i>Brain</button>
+  <button class="navbtn" data-tab="laporan"><i class="ph-fill ph-chart-line-up nav-icon"></i>Laporan</button>
+  <button class="navbtn" data-tab="pengaturan"><i class="ph-fill ph-gear-six nav-icon"></i>Setting</button>
+</nav>
+
+<div class="modal-overlay" id="draftModal">
+  <div class="modal-box">
+    <div class="modal-header">
+      <div>
+        <h3 id="modalTitle"><i class="ph ph-file-text"></i> Review Draft</h3>
+        <div class="msub" id="modalSub">Status: Draft</div>
+      </div>
+      <button class="mclose" id="modalClose"><i class="ph ph-x"></i></button>
+    </div>
+    <div class="modal-body">
+      <div class="draft-tabs" id="draftTabs"></div>
+      <div id="draftContentAreas"></div>
+      <div id="modalImageContainer"></div>
+      <div id="visualPromptContainer" class="prompt-cards-container" style="display:none;"></div>
+    </div>
+    <div class="modal-footer" id="modalActions"></div>
+  </div>
+</div>
+
+<div class="modal-overlay form-modal" id="knowledgeModal">
+  <div class="modal-box">
+    <div class="modal-header">
+      <div>
+        <h3 id="knowledgeModalTitle"><i class="ph ph-database"></i> Aset Pengetahuan</h3>
+        <div class="msub">Data ini akan dipakai AI sebagai referensi</div>
+      </div>
+      <button class="mclose" id="knowledgeModalClose"><i class="ph ph-x"></i></button>
+    </div>
+    <div class="modal-body">
+      <div class="field">
+        <label>Tipe Entitas</label>
+        <select id="kEntityType">
+          <option value="product">Produk</option>
+          <option value="usp">USP / Keunggulan</option>
+          <option value="photo">Foto Produk</option>
+          <option value="brand">Brand Info</option>
+          <option value="other">Lainnya</option>
+        </select>
+      </div>
+      <div class="field"><label>Nama Aset / Judul</label><input type="text" id="kName" placeholder="mis. Rujak Signature Mangga" /></div>
+      <div class="field"><label>Value (Keterangan / URL)</label><input type="text" id="kProperty" placeholder="Isi penjelasan atau URL link" /></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn ghost" id="knowledgeModalCancel">Batal</button>
+      <button class="btn primary" id="knowledgeModalSave"><i class="ph ph-check"></i> Simpan Data</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  const SUPABASE_URL = 'https://eihsgpqquydxbglqlret.supabase.co';
+  const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVpaHNncHFxdXlkeGJnbHFscmV0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI4MTU3MzksImV4cCI6MjA5ODM5MTczOX0.1GB3rw5xKygdqLUhVh4ND6z98CSFraCqSM2hWyTN9ng';
+  const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  
+  const rupiah = v => 'Rp' + new Intl.NumberFormat('id').format(v || 0);
+  const esc = s => (s ?? '').toString().replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+  window.showToast = function(msg, type = 'success') {
+    const container = document.getElementById('toastContainer');
+    const toast = document.createElement('div');
+    toast.className = `toast ${type}`;
+    const icon = type === 'success' ? 'ph-check-circle' : type === 'error' ? 'ph-warning-circle' : 'ph-info';
+    toast.innerHTML = `<i class="ph-fill ${icon}"></i> <span>${esc(msg)}</span>`;
+    container.appendChild(toast);
+    setTimeout(() => { 
+      toast.style.opacity = '0'; toast.style.transform = 'translateY(10px)'; toast.style.transition = 'all 0.3s ease'; 
+      setTimeout(() => toast.remove(), 300); 
+    }, 4000);
+  };
+
+  window.copyText = function(text) {
+    const tempInput = document.createElement("textarea");
+    tempInput.value = text;
+    document.body.appendChild(tempInput);
+    tempInput.select();
+    try {
+      document.execCommand("copy");
+      showToast("Disalin ke clipboard", "success");
+    } catch (err) {
+      showToast("Gagal menyalin.", "error");
+    }
+    document.body.removeChild(tempInput);
+  };
+
+  window.autoResize = function(el) {
+    el.style.height = 'auto'; 
+    el.style.height = (el.scrollHeight + 2) + 'px'; 
+  };
+
+  // PARSER TAB DRAFT (LOGIKA V2)
+  function parseDraftToTabs(fullText) {
+    if (!fullText) return [{ id: 'utama', title: 'Draft Utama', content: '' }];
+    let lines = fullText.split('\n');
+    let tabs = { 'utama': { title: 'Draft Utama', content: [] } };
+    let currentId = 'utama';
+
+    lines.forEach(line => {
+      let upper = line.toUpperCase();
+      if (upper.includes('TIKTOK SCRIPT') || (upper.includes('TIKTOK') && line.length < 25)) {
+        currentId = 'tiktok';
+        if (!tabs[currentId]) tabs[currentId] = { title: 'TikTok', icon: 'ph-tiktok-logo', content: [] };
+      } else if (upper.includes('INSTAGRAM CAPTION') || upper.includes('IG CAPTION') || (upper.includes('INSTAGRAM') && line.length < 25)) {
+        currentId = 'ig';
+        if (!tabs[currentId]) tabs[currentId] = { title: 'Instagram', icon: 'ph-instagram-logo', content: [] };
+      } else if (upper.includes('THREADS SCRIPT') || (upper.includes('THREADS') && line.length < 25)) {
+        currentId = 'threads';
+        if (!tabs[currentId]) tabs[currentId] = { title: 'Threads', icon: 'ph-threads-logo', content: [] };
+      } else {
+        tabs[currentId].content.push(line);
+      }
+    });
+
+    let result = [];
+    for (let key in tabs) {
+      let content = tabs[key].content.join('\n').trim();
+      if (content) result.push({ id: key, title: tabs[key].title, icon: tabs[key].icon || 'ph-file-text', content: content });
+    }
+    
+    if (result.length === 0) return [{ id: 'utama', title: 'Draft Utama', icon: 'ph-file-text', content: fullText }];
+    return result;
+  }
+
+  // --- LOGIN LOGIC ---
+  const loginScreen = document.getElementById('loginScreen');
+  const app = document.getElementById('app');
+  
+  async function checkSession(){
+    try {
+      const { data:{ session } } = await supabase.auth.getSession();
+      if (session){ showApp(session.user.email); } else { showLogin(); }
+    } catch (e) { showLogin(); }
+  }
+  function showApp(email){
+    loginScreen.classList.add('hidden'); app.classList.remove('hidden');
+    document.getElementById('userEmail').innerText = email || '';
+    const namePart = (email || '').split('@')[0] || 'Admin';
+    document.getElementById('greetName').innerText = namePart.charAt(0).toUpperCase() + namePart.slice(1);
+    document.getElementById('bottomNav').classList.remove('hidden');
+    initApp();
+  }
+  function showLogin(){ loginScreen.classList.remove('hidden'); app.classList.add('hidden'); document.getElementById('bottomNav').classList.add('hidden'); }
+
+  document.getElementById('loginForm').addEventListener('submit', async e => {
+    e.preventDefault();
+    const btn = document.getElementById('loginBtn');
+    btn.disabled = true; btn.innerHTML = '<i class="ph ph-spinner-gap ph-spin"></i> Mengautentikasi...';
+    try{
+      const { data, error } = await supabase.auth.signInWithPassword({ 
+        email: document.getElementById('email').value.trim(), 
+        password: document.getElementById('password').value.trim() 
+      });
+      if (error) throw error;
+      showApp(data.user.email);
+    } catch(e){
+      const errEl = document.getElementById('loginErr');
+      errEl.innerHTML = `<i class="ph-fill ph-warning-circle"></i> ${esc(e.message || 'Login gagal')}`;
+      errEl.style.display = 'flex';
+    } finally { btn.disabled=false; btn.innerHTML='Masuk Sistem'; }
+  });
+  
+  document.getElementById('logoutBtn').addEventListener('click', async () => { 
+    await supabase.auth.signOut(); showLogin(); location.reload(); 
+  });
+
+  // --- TAB NAVIGATION ---
+  function switchTab(tabId) {
+    document.querySelectorAll('.navbtn').forEach(b => b.classList.remove('active'));
+    const targetNav = document.querySelector(`.navbtn[data-tab="${tabId}"]`);
+    if(targetNav) targetNav.classList.add('active');
+    
+    document.querySelectorAll('.tabpanel').forEach(p => p.classList.remove('active'));
+    const targetPanel = document.getElementById('tab-' + tabId);
+    if(targetPanel) targetPanel.classList.add('active');
+    
+    if (tabId === 'pengetahuan') loadKnowledge();
+    localStorage.setItem('rujakActiveTab', tabId); 
+  }
+
+  document.addEventListener('click', e => {
+    const navEl = e.target.closest('[data-tab]');
+    if (navEl) { switchTab(navEl.dataset.tab); return; }
+    const scrollEl = e.target.closest('[data-scroll]');
+    if (scrollEl) {
+      switchTab('dashboard');
+      setTimeout(() => {
+        const target = document.getElementById(scrollEl.dataset.scroll);
+        if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 60);
+    }
+  });
+
+  document.getElementById('quickInstant').addEventListener('click', () => {
+    switchTab('dashboard');
+    setTimeout(() => document.getElementById('btnInstantGenerate').click(), 60);
+  });
+  document.getElementById('quickOrchestrate').addEventListener('click', () => {
+    switchTab('dashboard');
+    setTimeout(() => document.getElementById('btnOrchestrate').click(), 60);
+  });
+
+  document.getElementById('quickSearch').addEventListener('input', e => {
+    const q = e.target.value.trim().toLowerCase();
+    document.querySelectorAll('#actionQueue .qcard').forEach(card => {
+      const title = card.querySelector('.qtitle')?.innerText.toLowerCase() || '';
+      card.style.display = !q || title.includes(q) ? '' : 'none';
+    });
+    document.querySelectorAll('#knowledgeTableBody tr').forEach(row => {
+      const text = row.innerText.toLowerCase();
+      row.style.display = !q || text.includes(q) ? '' : 'none';
+    });
+  });
+
+  document.getElementById('pipelineCols').addEventListener('click', e => {
+    const item = e.target.closest('[data-open]');
+    if (item) openDraft(parseInt(item.dataset.open));
+  });
+
+  document.getElementById('actionQueue').addEventListener('click', e => {
+    const item = e.target.closest('[data-open], [data-view]');
+    if (item) openDraft(parseInt(item.dataset.open || item.dataset.view));
+  });
+
+  // --- APP STATE ---
+  let allOrders = [], allContent = [], allKnowledge = [], appInited = false, chartInstance = null;
+  let currentModalDrafts = []; 
+  let editingKnowledgeId = null;
+
+  function initApp(){
+    if (appInited) return; appInited = true;
+    switchTab(localStorage.getItem('rujakActiveTab') || 'dashboard');
+    loadOrders(); loadPlan(); loadContent(); loadKnowledge(); loadSettings();
+
+    supabase.channel('public:content_workflow')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'content_workflow' }, payload => {
+         loadContent(); 
+         if(payload.eventType === 'INSERT') showToast('✨ AI baru saja menambahkan draft baru!', 'success');
+      }).subscribe();
+  }
+
+  function setStatus(ok, text){
+    const pill = document.getElementById('statusPill');
+    pill.className = 'status-pill ' + (ok?'ok':'err');
+    document.getElementById('statusText').innerText = text;
+  }
+
+  async function authHeader(){
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      return session?.access_token || SUPABASE_ANON_KEY;
+    } catch(e){ return SUPABASE_ANON_KEY; }
+  }
+
+  // --- SETTINGS ---
+  function loadSettings(){
+    try {
+      const raw = localStorage.getItem('rujakSettings');
+      const settings = raw ? JSON.parse(raw) : { targetPerDay: 3 };
+      document.getElementById('settingTargetPerDay').value = settings.targetPerDay || 3;
+    } catch(e){}
+  }
+  document.getElementById('btnSaveSettings').addEventListener('click', () => {
+    const val = parseInt(document.getElementById('settingTargetPerDay').value, 10) || 3;
+    localStorage.setItem('rujakSettings', JSON.stringify({ targetPerDay: val }));
+    window.showToast('Pengaturan berhasil disimpan');
+  });
+
+  // --- DATA LOADERS ---
+  async function loadOrders(){
+    try{
+      const { data, error } = await supabase.from('orders_sync').select('*').order('created_at',{ascending:false});
+      if (!error) {
+        allOrders = data || [];
+        document.getElementById('statOrders').innerText = allOrders.length;
+        document.getElementById('statRevenue').innerText = rupiah(allOrders.reduce((s,o)=>s+(o.total||0),0));
+        document.getElementById('statPending').innerText = allOrders.filter(o=>o.status==='pending').length;
+        
+        const today=new Date(); const dates=[], map={};
+        for(let i=6;i>=0;i--){ const d=new Date(today); d.setDate(d.getDate()-i); const k=d.toISOString().slice(0,10); dates.push(k); map[k]=0; }
+        allOrders.forEach(o=>{ const k=(o.created_at||'').slice(0,10); if(map[k]!==undefined) map[k]+=(o.total||0); });
+        
+        const ctx = document.getElementById('salesChart').getContext('2d');
+        if (chartInstance) chartInstance.destroy();
+        chartInstance = new Chart(ctx,{ type:'line', data:{ labels: dates.map(d=>d.slice(5)), datasets:[{ data:Object.values(map), borderColor:'#C1421A', backgroundColor:'rgba(193, 66, 26, 0.05)', fill:true, tension:0.4, pointRadius:4 }] }, options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{ y:{beginAtZero:true, grid:{color:'rgba(43, 35, 32, 0.08)'}}, x:{grid:{display:false}} } } });
+      }
+      setStatus(true,'Sistem Terhubung');
+    } catch(e){ setStatus(false,'Koneksi Terputus'); }
+  }
+
+  async function loadPlan(){
+    try{
+      const { data } = await supabase.from('ai_plans').select('*').eq('plan_date',new Date().toISOString().slice(0,10)).order('created_at',{ascending:false}).limit(1);
+      const c = document.getElementById('planContainer');
+      if (!data || data.length===0){ c.innerHTML = '<p style="color:rgba(255,255,255,0.7); font-size:14px; margin:0;"><i class="ph ph-info"></i> Belum ada AI Compass Planner hari ini.</p>'; return; }
+      c.innerHTML = `<div class="ptitle"><i class="ph-fill ph-target"></i> Fokus Hari Ini: <span class="ptarget">${esc(data[0].target_menu||'-')}</span></div><p><strong>${esc(data[0].title||'Rekomendasi')}</strong><br>${esc(data[0].recommendation||'-')}</p>`;
+    } catch(e){}
+  }
+
+  // LOGIKA FETCH TARGET_MENU DARI V5
+  async function loadContent(){
+    try{
+      const { data, error } = await supabase.from('content_workflow').select('*').order('created_at', { ascending: false });
+      if (error) throw error;
+      allContent = data || [];
+      const planIds = [...new Set(allContent.map(c => c.plan_id).filter(Boolean))];
+      if (planIds.length > 0) {
+        const { data: plans } = await supabase.from('ai_plans').select('id, target_menu').in('id', planIds);
+        const planMap = {};
+        (plans || []).forEach(p => { planMap[p.id] = p.target_menu; });
+        allContent.forEach(c => { c.target_menu = planMap[c.plan_id] || null; });
+      }
+      renderPipeline(); renderQueue();
+    } catch(e){ window.showToast('Gagal memuat konten: '+e.message, 'error'); }
+  }
+
+  function renderPipeline(){
+    const cols = { draft:[], reviewed:[], scheduled:[], published:[] };
+    allContent.forEach(c => { if (cols[c.status]) cols[c.status].push(c); });
+    const labels = { draft:'Draf Awal', reviewed:'Pending Review', scheduled:'Siap Tayang', published:'Selesai' };
+    const icons = { draft:'ph-file-dashed', reviewed:'ph-check-square', scheduled:'ph-calendar-blank', published:'ph-check-circle' };
+    
+    document.getElementById('pipelineCols').innerHTML = Object.keys(cols).map(key => `
+      <div class="pcol"><h4><span><i class="ph ${icons[key]}"></i> ${labels[key]}</span> <span>${cols[key].length}</span></h4>
+        ${cols[key].length===0 ? '<div style="font-size:12.5px; color:var(--ink-soft); text-align:center; padding:20px 0;">Kosong</div>' : cols[key].map(c => `
+          <div class="pitem" data-open="${c.id}">
+            <div class="ptitle2">${esc(c.title || 'Tanpa judul')}</div>
+            <div class="pslot"><i class="ph ph-tag"></i> ${esc(c.slot_type||'-')} ${c.risk_flag?'<span style="color:var(--danger)"><i class="ph-fill ph-warning"></i></span>':''}</div>
+          </div>`).join('')}
+      </div>`).join('');
+  }
+
+  function renderQueue(){
+    const items = allContent.filter(c=>c.status==='draft').map(c => ({
+      id:c.id, tag: 'Ide Baru', title: c.title, cls: c.risk_flag ? 'risk' : 'low'
+    }));
+    document.getElementById('queueCount').innerText = items.length;
+    const qWrap = document.getElementById('actionQueue');
+    if (items.length===0){ qWrap.innerHTML = '<div class="empty-state"><i class="ph-fill ph-check-circle"></i><span>Arsip kosong, semua ide sudah diproses!</span></div>'; return; }
+    qWrap.innerHTML = items.map(it => `
+      <div class="qcard ${it.cls}" data-view="${it.id}">
+        <div class="qmeta"><div class="qtag"><i class="ph-fill ${it.cls === 'risk' ? 'ph-warning' : 'ph-sparkle'}"></i> ${it.tag}</div><div class="qtitle">${esc(it.title)}</div></div>
+        <div class="qactions"><button class="btn ghost" style="border:1px solid var(--panel-line);">Periksa</button></div>
+      </div>`).join('');
+  }
+
+  // --- KNOWLEDGE TAB ---
+  async function loadKnowledge(){
+    try {
+      const { data } = await supabase.from('knowledge_entities').select('*').eq('is_active', true).limit(50);
+      allKnowledge = data || [];
+      const tbody = document.getElementById('knowledgeTableBody');
+      const empty = document.getElementById('knowledgeEmpty');
+      if (!allKnowledge.length) { tbody.innerHTML = ''; empty.style.display = 'flex'; } 
+      else {
+        empty.style.display = 'none';
+        tbody.innerHTML = allKnowledge.map(e => `<tr>
+            <td><span style="background:var(--leaf-wash); color:var(--leaf-dark); padding:4px 8px; border-radius:6px; font-size:11px; font-weight:700; border:1px solid #C8E6C9;">${esc(e.entity_type)}</span></td>
+            <td style="font-weight:700;">${esc(e.name)}</td>
+            <td style="font-size:12.5px; color:var(--ink-soft);">${esc(JSON.stringify(e.properties).slice(0,50))}</td>
+            <td><button class="btn ghost" style="padding:6px; font-size:14px;" data-edit-knowledge="${e.id}"><i class="ph ph-pencil-simple"></i></button></td>
+          </tr>`).join('');
+      }
+    } catch(e) { window.showToast('Gagal memuat pengetahuan: '+e.message, 'error'); }
+  }
+
+  document.getElementById('knowledgeTableBody').addEventListener('click', e => {
+    const btn = e.target.closest('[data-edit-knowledge]');
+    if (btn) openKnowledgeModal(parseInt(btn.dataset.editKnowledge));
+  });
+
+  const knowledgeModal = document.getElementById('knowledgeModal');
+  function openKnowledgeModal(id){
+    editingKnowledgeId = id || null;
+    const record = id ? allKnowledge.find(k => k.id === id) : null;
+    document.getElementById('knowledgeModalTitle').innerHTML = record ? '<i class="ph ph-pencil-simple"></i> Edit Pengetahuan' : '<i class="ph ph-database"></i> Tambah Pengetahuan';
+    document.getElementById('kEntityType').value = record?.entity_type || 'product';
+    document.getElementById('kName').value = record?.name || '';
+    let propText = '';
+    if (record?.properties) {
+      try { propText = typeof record.properties === 'string' ? record.properties : JSON.stringify(record.properties); }
+      catch(e){ propText = ''; }
+    }
+    document.getElementById('kProperty').value = propText;
+    knowledgeModal.classList.add('active');
+  }
+  document.getElementById('btnAddKnowledge').addEventListener('click', () => openKnowledgeModal(null));
+  document.getElementById('knowledgeModalClose').addEventListener('click', () => knowledgeModal.classList.remove('active'));
+  document.getElementById('knowledgeModalCancel').addEventListener('click', () => knowledgeModal.classList.remove('active'));
+  knowledgeModal.addEventListener('click', e => { if (e.target === knowledgeModal) knowledgeModal.classList.remove('active'); });
+
+  document.getElementById('knowledgeModalSave').addEventListener('click', async () => {
+    const entity_type = document.getElementById('kEntityType').value;
+    const name = document.getElementById('kName').value.trim();
+    const propertyRaw = document.getElementById('kProperty').value.trim();
+    if (!name) { window.showToast('Nama aset wajib diisi', 'error'); return; }
+
+    const payload = { entity_type, name, properties: { value: propertyRaw }, is_active: true };
+    try{
+      if (editingKnowledgeId) {
+        const { error } = await supabase.from('knowledge_entities').update(payload).eq('id', editingKnowledgeId);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from('knowledge_entities').insert(payload);
+        if (error) throw error;
+      }
+      knowledgeModal.classList.remove('active');
+      window.showToast('Aset pengetahuan tersimpan', 'success');
+      loadKnowledge();
+    } catch(e){ window.showToast('Gagal menyimpan: ' + e.message, 'error'); }
+  });
+
+  document.getElementById('btnRefreshContent').addEventListener('click', () => { loadContent(); window.showToast('Menyinkronkan data...', 'info'); });
+  
+  document.getElementById('btnInstantGenerate').addEventListener('click', async () => {
+    const btn = document.getElementById('btnInstantGenerate');
+    btn.disabled = true; btn.innerHTML = '<i class="ph ph-spinner-gap ph-spin"></i> Meracik...';
+    try {
+      const token = await authHeader();
+      const res = await fetch(`${SUPABASE_URL}/functions/v1/ai-writer`, { method: 'POST', headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ slot_type: 'Instan Multi-Platform' }) });
+      const r = await res.json();
+      if (!r.success) throw new Error(r.error);
+      await loadContent();
+      if (r.saved_id) openDraft(r.saved_id); else window.showToast('Berhasil membuat draft!', 'success');
+    } catch(e) { window.showToast(e.message, 'error'); } 
+    finally { btn.disabled = false; btn.innerHTML = '<i class="ph-fill ph-lightning"></i> Buat Sekarang'; }
+  });
+
+  document.getElementById('btnOrchestrate').addEventListener('click', async () => {
+    const btn = document.getElementById('btnOrchestrate');
+    btn.disabled = true; btn.innerHTML = '<i class="ph ph-spinner-gap ph-spin"></i> Menjadwalkan...';
+    try {
+      const token = await authHeader();
+      const res = await fetch(`${SUPABASE_URL}/functions/v1/ai-orchestrator`, { method: 'POST', headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${token}` } });
+      const r = await res.json();
+      if (r.success) window.showToast('Siklus harian dimulai.', 'success'); else throw new Error(r.error);
+    } catch(e){ window.showToast(e.message, 'error'); }
+    btn.disabled = false; btn.innerHTML = '<i class="ph ph-play-circle"></i> Jalankan Autopilot';
+  });
+
+  // --- MODAL CONTROLLER (UI TAB CANGGIH V2) ---
+  const modal = document.getElementById('draftModal');
+  
+  window.switchDraftTab = function(tabId) {
+    document.querySelectorAll('.d-tab').forEach(b => b.classList.remove('active'));
+    document.getElementById('tabbtn-' + tabId).classList.add('active');
+    
+    document.querySelectorAll('.draft-pane').forEach(p => p.classList.remove('active'));
+    document.getElementById('pane-' + tabId).classList.add('active');
+    
+    const activeTextarea = document.getElementById('ta-' + tabId);
+    if(activeTextarea) { setTimeout(() => window.autoResize(activeTextarea), 10); }
+  };
+
+  document.getElementById('draftContentAreas').addEventListener('click', e => {
+    const btn = e.target.closest('[data-copy-target]');
+    if (!btn) return;
+    const ta = document.getElementById(btn.dataset.copyTarget);
+    if (ta) window.copyText(ta.value);
+  });
+  document.getElementById('draftTabs').addEventListener('click', e => {
+    const btn = e.target.closest('[data-switch-tab]');
+    if (btn) window.switchDraftTab(btn.dataset.switchTab);
+  });
+  document.getElementById('visualPromptContainer').addEventListener('click', e => {
+    const btn = e.target.closest('[data-copy-field]');
+    if (!btn) return;
+    const c = allContent.find(x => x.id === currentOpenId);
+    if (c && c[btn.dataset.copyField]) window.copyText(c[btn.dataset.copyField]);
+  });
+
+  let currentOpenId = null;
+
+  function openDraft(id){
+    const c = allContent.find(x => x.id === id);
+    if (!c) { window.showToast('Konten tidak ditemukan!', 'error'); return; }
+    currentOpenId = id;
+    
+    document.getElementById('modalTitle').innerHTML = `<i class="ph ph-file-text"></i> ${esc(c.title || 'Konten')}`;
+    const statusLabelMap = { draft: 'Ide Mentah', reviewed: 'Disetujui', scheduled: 'Siap Tayang', published: 'Selesai' };
+    document.getElementById('modalSub').innerText = `Tipe: ${c.slot_type||'-'} | Status: ${statusLabelMap[c.status] || (c.status||'draft').toUpperCase()}`;
+    
+    currentModalDrafts = parseDraftToTabs(c.draft);
+    
+    const tabsCont = document.getElementById('draftTabs');
+    const panesCont = document.getElementById('draftContentAreas');
+    
+    tabsCont.innerHTML = currentModalDrafts.map((tab, idx) => `
+      <button class="d-tab ${idx === 0 ? 'active' : ''}" id="tabbtn-${tab.id}" data-switch-tab="${tab.id}"><i class="ph ${tab.icon}"></i> ${tab.title}</button>
+    `).join('');
+    
+    panesCont.innerHTML = currentModalDrafts.map((tab, idx) => `
+      <div class="draft-pane ${idx === 0 ? 'active' : ''}" id="pane-${tab.id}">
+        <div class="draft-pane-header">
+          <span>Teks ${tab.title}</span>
+          <button class="btn ghost" style="padding:4px 10px; font-size:11px;" data-copy-target="ta-${tab.id}"><i class="ph ph-copy"></i> Salin Teks</button>
+        </div>
+        <textarea class="draft-content" id="ta-${tab.id}" oninput="window.autoResize(this)">${tab.content}</textarea>
+      </div>
+    `).join('');
+
+    setTimeout(() => {
+       const firstTa = document.getElementById('ta-' + currentModalDrafts[0].id);
+       if(firstTa) window.autoResize(firstTa);
+    }, 50);
+    
+    const imgCont = document.getElementById('modalImageContainer');
+    if (c.image_url) { imgCont.innerHTML = `<img src="${c.image_url}" style="width:100%; max-width:400px; border-radius:14px; margin-top:20px; border:1px solid var(--panel-line); display:block;">`; }
+    else { imgCont.innerHTML = ''; }
+
+    const vpContainer = document.getElementById('visualPromptContainer');
+    if (c.visual_prompt || c.video_prompt) {
+      vpContainer.style.display = 'block';
+      let html = '';
+      if (c.visual_prompt) {
+        html += `<div class="prompt-card">
+          <div class="prompt-card-header">
+            <span class="p-title"><i class="ph-fill ph-palette"></i> Prompt Midjourney</span>
+            <button class="btn ghost" style="padding:4px 10px; font-size:11px;" data-copy-field="visual_prompt"><i class="ph ph-copy"></i> Salin</button>
+          </div>
+          <pre>${esc(c.visual_prompt)}</pre>
+        </div>`;
+      }
+      if (c.video_prompt) {
+        html += `<div class="prompt-card" style="margin-bottom:0;">
+          <div class="prompt-card-header">
+            <span class="p-title"><i class="ph-fill ph-video-camera"></i> Prompt Runway</span>
+            <button class="btn ghost" style="padding:4px 10px; font-size:11px;" data-copy-field="video_prompt"><i class="ph ph-copy"></i> Salin</button>
+          </div>
+          <pre>${esc(c.video_prompt)}</pre>
+        </div>`;
+      }
+      vpContainer.innerHTML = html;
+    } else {
+      vpContainer.style.display = 'none';
+      vpContainer.innerHTML = '';
+    }
+
+    const actions = document.getElementById('modalActions'); 
+    actions.innerHTML = '';
+    
+    const getCombinedDraft = () => {
+       return currentModalDrafts.map(tab => {
+           let val = document.getElementById('ta-' + tab.id).value.trim();
+           if (currentModalDrafts.length === 1 && tab.id === 'utama') return val;
+           return `\n${tab.title.toUpperCase()} SCRIPT\n${val}\n`;
+       }).join('\n').trim();
+    };
+    
+    if (c.status === 'draft'){
+      const btnSetuju = document.createElement('button');
+      btnSetuju.className='btn primary'; btnSetuju.innerHTML='<i class="ph ph-check"></i> Setujui Draft';
+      btnSetuju.onclick = async () => await setStatus_(c.id, 'reviewed', { updated_at: new Date().toISOString(), draft: getCombinedDraft() });
+      actions.appendChild(btnSetuju);
+
+      const btnBuang = document.createElement('button');
+      btnBuang.className = 'btn danger'; btnBuang.innerHTML = '<i class="ph ph-trash"></i> Buang';
+      btnBuang.onclick = async () => {
+        if (!confirm('Buang ide ini dari arsip?')) return;
+        try {
+          await supabase.from('content_workflow').delete().eq('id', c.id);
+          modal.classList.remove('active');
+          window.showToast('Ide dibuang', 'success');
+          loadContent();
+        } catch(e){ window.showToast(e.message, 'error'); }
+      };
+      actions.appendChild(btnBuang);
+    }
+    else if (c.status === 'reviewed'){
+      const btnJadwal = document.createElement('button');
+      btnJadwal.className='btn primary'; btnJadwal.innerHTML='<i class="ph ph-calendar-plus"></i> Siap Tayang';
+      btnJadwal.onclick = async () => await setStatus_(c.id, 'scheduled', { updated_at: new Date().toISOString(), draft: getCombinedDraft() });
+      actions.appendChild(btnJadwal);
+
+      const btnBuang = document.createElement('button');
+      btnBuang.className = 'btn danger'; btnBuang.innerHTML = '<i class="ph ph-trash"></i> Buang';
+      btnBuang.onclick = async () => {
+        if (!confirm('Buang konten ini?')) return;
+        try {
+          await supabase.from('content_workflow').delete().eq('id', c.id);
+          modal.classList.remove('active');
+          window.showToast('Konten dibuang', 'success');
+          loadContent();
+        } catch(e){ window.showToast(e.message, 'error'); }
+      };
+      actions.appendChild(btnBuang);
+    }
+    else if (c.status === 'scheduled'){
+      const btnTerbit = document.createElement('button'); 
+      btnTerbit.className='btn primary'; btnTerbit.innerHTML='<i class="ph ph-check-circle"></i> Sudah Diposting';
+      btnTerbit.onclick = async () => await setStatus_(c.id, 'published', { published_at: new Date().toISOString(), draft: getCombinedDraft() });
+      actions.appendChild(btnTerbit);
+    }
+
+    const btnGambar = document.createElement('button');
+    btnGambar.className = 'btn ghost'; btnGambar.innerHTML = '<i class="ph ph-image"></i> Rakit Visual';
+    btnGambar.onclick = async () => {
+      btnGambar.disabled = true; btnGambar.innerHTML = '<i class="ph ph-spinner-gap ph-spin"></i> Merakit...';
+      try {
+        const { data, error } = await supabase.functions.invoke('compose-image', { body: { content_id: c.id, headline: c.title, menu_name: c.target_menu || c.title }});
+        if (error) throw error; 
+        document.getElementById('modalImageContainer').innerHTML = `<img src="${data.image_url}" style="width:100%; max-width:400px; border-radius:14px; margin-top:16px; border:1px solid var(--panel-line); display:block;">`;
+        btnGambar.style.display = 'none';
+        window.showToast('Desain berhasil dibuat!', 'success');
+      } catch(e) { window.showToast('Gagal membuat gambar.', 'error'); btnGambar.disabled = false; btnGambar.innerHTML = '<i class="ph ph-image"></i> Rakit Visual'; }
+    };
+    actions.appendChild(btnGambar);
+
+    const visualBtn = document.createElement('button');
+    visualBtn.className = 'btn ghost'; visualBtn.innerHTML = '<i class="ph ph-sparkle"></i> Prompts AI';
+    visualBtn.onclick = async () => {
+      visualBtn.disabled = true; visualBtn.innerHTML = '<i class="ph ph-spinner-gap ph-spin"></i> Proses...';
+      try {
+        const { data, error } = await supabase.functions.invoke('ai-visual-prompts', { body: { content_id: c.id } });
+        if (error) throw error;
+        openDraft(c.id); 
+        window.showToast('Prompt AI berhasil dirakit!', 'success');
+      } catch (e) { window.showToast('Gagal merakit prompt.', 'error'); }
+      visualBtn.disabled = false; visualBtn.innerHTML = '<i class="ph ph-sparkle"></i> Prompts AI';
+    };
+    actions.appendChild(visualBtn);
+
+    modal.classList.add('active');
+  }
+
+  async function setStatus_(id, status, extra){
+    try{
+      await supabase.from('content_workflow').update({ status, ...extra }).eq('id', id);
+      modal.classList.remove('active');
+      window.showToast('Status berhasil diubah', 'success');
+      loadContent();
+    } catch(e){ window.showToast(e.message, 'error'); }
+  }
+  
+  document.getElementById('modalClose').addEventListener('click', () => modal.classList.remove('active'));
+  modal.addEventListener('click', e => { if (e.target === modal) modal.classList.remove('active'); });
+
+  checkSession();
+})();
+</script>
+</body>
+</html>
