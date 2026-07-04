@@ -1,0 +1,762 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<meta name="theme-color" content="#09090B" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="RujakOS" />
+<link rel="manifest" href="./manifest.json" />
+
+<title>RujakOS — Command Center</title>
+
+<!-- Font & Ikon Modern -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/@phosphor-icons/web"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+
+<style>
+  :root{
+    /* Palet Zinc Tech Clean */
+    --paper: #FFFFFF; 
+    --panel: #F4F4F5; 
+    --panel-line: #E4E4E7; 
+    --ink: #09090B; 
+    --ink-soft: #71717A; 
+    
+    /* Aksen */
+    --chili: #18181B; 
+    --chili-wash: #F4F4F5;
+    --gold: #F59E0B; 
+    --leaf: #10B981; 
+    --leaf-wash: #D1FAE5; 
+    --leaf-dark: #059669;
+    --danger: #EF4444; 
+    --danger-wash: #FEE2E2;
+  }
+  
+  *{box-sizing:border-box; -webkit-tap-highlight-color: transparent;}
+  
+  body{ 
+    margin:0; background:var(--panel); color:var(--ink); 
+    font-family: 'Plus Jakarta Sans', system-ui, sans-serif; 
+    -webkit-font-smoothing: antialiased; letter-spacing: -0.01em; 
+  }
+  h1,h2,h3,h4{ font-family: 'Plus Jakarta Sans', sans-serif; letter-spacing: -0.03em; margin:0;}
+  .hidden{ display:none !important; }
+  
+  /* Container Utama ditarik ke atas agar terasa native, bottom padding untuk nav */
+  .wrap{ max-width:900px; margin:0 auto; padding:0 0 96px; min-height:100vh;}
+
+  /* ===== TOAST ===== */
+  #toastContainer { position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%); z-index: 9999; display: flex; flex-direction: column; gap: 10px; pointer-events: none; width: 90%; max-width:400px;}
+  .toast { background: var(--ink); color: #fff; padding: 12px 20px; border-radius: 99px; font-size: 13px; font-weight: 600; box-shadow: 0 10px 30px rgba(0,0,0,0.15); animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1); display: flex; align-items: center; justify-content:center; gap: 8px;}
+  .toast i { font-size: 18px; }
+  .toast.error { background: var(--danger); }
+  @keyframes slideUp { from { transform: translateY(20px) scale(0.95); opacity: 0; } to { transform: translateY(0) scale(1); opacity: 1; } }
+
+  /* ===== BUTTONS ===== */
+  .btn{ font-family:inherit; font-size:13px; font-weight:600; padding:10px 16px; border-radius:10px; border:1px solid transparent; cursor:pointer; transition:all 0.2s; outline: none; display:inline-flex; align-items:center; gap:6px; justify-content:center; line-height:1;}
+  .btn.primary{ background:var(--ink); color:#fff; }
+  .btn.primary:active{ transform: scale(0.97); }
+  .btn.ghost{ background:transparent; color:var(--ink); border-color:var(--panel-line); }
+  .btn.ghost:hover{ background:var(--panel); border-color: var(--ink-soft); }
+  .btn.danger{ background:#fff; color:var(--danger); border-color:var(--panel-line); }
+  .btn.danger:hover{ background:var(--danger-wash); border-color:#FECACA; }
+  .btn:disabled{ opacity:.6; cursor:not-allowed; transform:none!important;}
+
+  /* ===== APP HEADER NATIVE STYLE ===== */
+  .app-header{ background:var(--paper); padding: 16px 20px; border-bottom:1px solid var(--panel-line); display:flex; justify-content:space-between; align-items:center; position:sticky; top:0; z-index:100; box-shadow: 0 1px 2px rgba(0,0,0,0.02);}
+  .greeting{ font-size:17px; font-weight:700; color:var(--ink); display:flex; align-items:center; gap:6px;}
+  .status-dot{ width:8px; height:8px; border-radius:99px; background:var(--leaf); box-shadow: 0 0 0 2px var(--leaf-wash); animation: pulse 2s infinite; }
+  @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.4; } 100% { opacity: 1; } }
+  .header-actions { display:flex; gap:12px; align-items:center;}
+  .icon-btn{ background:none; border:none; color:var(--ink-soft); font-size:20px; padding:4px; cursor:pointer; transition:0.2s;}
+  .icon-btn:hover{ color:var(--ink); }
+
+  /* ===== TAB SYSTEM ===== */
+  .tabpanel{ display:none; padding:20px; animation: fadeIn 0.2s ease-in-out; }
+  .tabpanel.active{ display:block; }
+  @keyframes fadeIn { from { opacity:0; transform:translateY(4px); } to { opacity:1; transform:translateY(0); } }
+
+  /* ===== CARDS & SECTIONS ===== */
+  .section-card { background: var(--paper); border: 1px solid var(--panel-line); border-radius: 16px; padding: 20px; margin-bottom: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.02);}
+  .section-title { font-size: 14px; font-weight: 700; color: var(--ink-soft); text-transform: uppercase; letter-spacing: 0.05em; display:flex; align-items:center; gap:6px; margin-bottom:16px;}
+  
+  /* ===== 1. BERANDA (Dashboard) ===== */
+  .hero-dark { background: var(--ink); color:#fff; border-radius:16px; padding:24px; margin-bottom:16px; position:relative; overflow:hidden;}
+  .hero-dark .label { font-size: 11px; font-weight:600; color:#A1A1AA; text-transform:uppercase; letter-spacing:0.05em; margin-bottom:8px; display:flex; align-items:center; gap:4px;}
+  .hero-dark h3 { font-size: 18px; font-weight: 700; margin:0 0 12px; line-height:1.4;}
+  .hero-dark p { font-size: 14px; color: #D4D4D8; margin:0; line-height:1.6;}
+  .hero-badge { background: #27272A; border:1px solid #3F3F46; padding: 4px 10px; border-radius:6px; font-size:11px; font-weight:700; display:inline-block; margin-bottom:12px;}
+
+  .grid-2 { display:grid; grid-template-columns: 1fr 1fr; gap:12px;}
+  .stat-box { border: 1px solid var(--panel-line); border-radius: 12px; padding: 16px; background:var(--panel);}
+  .stat-box .sl { font-size: 12px; color:var(--ink-soft); font-weight: 600; margin-bottom:4px;}
+  .stat-box .sv { font-size: 24px; font-weight: 800; color:var(--ink); font-variant-numeric: tabular-nums; letter-spacing: -0.02em;}
+
+  /* ===== 2. PABRIK AI (Ideation) ===== */
+  .action-banner { background: var(--gold-wash); border: 1px solid #FDE68A; border-radius: 16px; padding: 20px; margin-bottom: 16px; display:flex; flex-direction:column; gap:12px;}
+  .action-banner p { margin:0; font-size:13.5px; color: #92400E; font-weight:500; line-height:1.5;}
+
+  /* SMART CARDS: Untuk Arsip Ide (Menampilkan Preview Teks) */
+  .idea-card { background:#fff; border:1px solid var(--panel-line); border-radius:14px; padding:16px; margin-bottom:12px; transition:0.2s; box-shadow: 0 1px 2px rgba(0,0,0,0.02); cursor:pointer;}
+  .idea-card:active { transform: scale(0.98); }
+  .idea-head { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:8px;}
+  .idea-title { font-size:15px; font-weight:700; color:var(--ink); line-height:1.3;}
+  .idea-tag { font-size:10px; font-weight:700; padding:2px 8px; border-radius:6px; background:var(--panel); color:var(--ink-soft); border:1px solid var(--panel-line);}
+  .idea-preview { font-size:13px; color:var(--ink-soft); line-height:1.5; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; margin-bottom:12px;}
+  /* Platform Icons detector */
+  .platform-icons { display:flex; gap:6px; margin-bottom:12px;}
+  .platform-icons i { font-size:16px; color:var(--ink-soft); opacity:0.6;}
+  .idea-actions { display:grid; grid-template-columns: 1fr 1fr; gap:8px;}
+
+  /* ===== 3. KANBAN ANTREAN (Horizontal Scroll di HP) ===== */
+  .kanban-board { display:flex; gap:16px; overflow-x:auto; padding-bottom:16px; scroll-snap-type: x mandatory;}
+  .kanban-board::-webkit-scrollbar { height: 0px; } /* Sembunyikan scrollbar */
+  .k-col { background:var(--panel); border:1px solid var(--panel-line); border-radius:14px; padding:12px; min-width: 280px; flex: 0 0 auto; scroll-snap-align: start;}
+  .k-header { font-size:13px; font-weight:700; color:var(--ink); display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; padding:0 4px;}
+  .k-count { background:var(--paper); border:1px solid var(--panel-line); font-size:11px; padding:2px 8px; border-radius:99px;}
+  
+  /* Kartu di dalam Kanban */
+  .k-card { background:#fff; border:1px solid var(--panel-line); border-radius:10px; padding:14px; margin-bottom:10px; box-shadow: 0 1px 2px rgba(0,0,0,0.02); cursor:pointer;}
+  .k-card .k-title { font-size:14px; font-weight:600; line-height:1.4; margin-bottom:6px; color:var(--ink);}
+  .k-card .k-preview { font-size:12px; color:var(--ink-soft); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-bottom:10px;}
+
+  /* SKELETON / EMPTY STATES */
+  .skeleton { background: var(--panel-line); border-radius: 6px; height: 16px; width: 100%; display: block; margin-bottom: 8px; animation: shimmer 1.5s infinite; }
+  .skeleton.short { width: 60%; }
+  @keyframes shimmer { 0% { opacity: 0.4; } 50% { opacity: 0.8; } 100% { opacity: 0.4; } }
+  .empty-box { border: 2px dashed var(--panel-line); border-radius:10px; padding:24px; text-align:center; color:var(--ink-soft); font-size:13px; font-weight:500; display:flex; flex-direction:column; align-items:center; gap:8px;}
+
+  /* ===== 4. BRAIN & SETTINGS ===== */
+  .data-list { display:flex; flex-direction:column; gap:8px;}
+  .data-item { background:#fff; border:1px solid var(--panel-line); border-radius:10px; padding:12px 16px; display:flex; justify-content:space-between; align-items:center; cursor:pointer;}
+  .data-item .d-info h4 { font-size:14px; font-weight:600; margin-bottom:2px;}
+  .data-item .d-info p { font-size:12px; color:var(--ink-soft); margin:0;}
+  .data-item .d-badge { font-size:10px; font-weight:700; background:var(--panel); padding:2px 6px; border-radius:4px; color:var(--ink-soft); border:1px solid var(--panel-line);}
+
+  .field { margin-bottom:16px;}
+  .field label { font-size:12px; font-weight:600; color:var(--ink-soft); display:block; margin-bottom:6px;}
+  .field input, .field select { width:100%; padding:12px; border-radius:8px; border:1px solid var(--panel-line); background:#fff; font-family:inherit; font-size:14px; outline:none;}
+  .field input:focus { border-color:var(--ink); }
+
+  /* ===== BOTTOM NAVIGATION ===== */
+  .bottom-nav{ position:fixed; bottom:0; left:0; right:0; background:rgba(255,255,255,0.95); backdrop-filter: blur(12px); border-top:1px solid var(--panel-line); display:flex; justify-content:space-around; padding:8px 8px calc(8px + env(safe-area-inset-bottom, 0px)); z-index:500; }
+  .navbtn{ background:none; border:none; display:flex; flex-direction:column; align-items:center; gap:4px; font-family:inherit; font-size:10.5px; font-weight:600; color:var(--ink-soft); cursor:pointer; padding:6px 12px; border-radius:12px; transition:0.2s; outline:none; flex:1;}
+  .navbtn i{ font-size:22px; }
+  .navbtn.active{ color:var(--ink); }
+  .navbtn.active i{ font-weight:fill; } /* Jika font mendukung style fill */
+
+  /* ===== MODALS (Full Screen on Mobile) ===== */
+  .modal-overlay{ position:fixed; inset:0; background:rgba(9, 9, 11, 0.6); display:none; align-items:flex-end; justify-content:center; z-index:999; backdrop-filter: blur(4px); }
+  .modal-overlay.active{ display:flex; animation: fadeInModal 0.2s ease; }
+  @keyframes fadeInModal { from { opacity:0; } to { opacity:1; } }
+  
+  .modal-box{ background:var(--panel); width:100%; max-width:600px; max-height:90vh; border-radius:20px 20px 0 0; display:flex; flex-direction:column; position:relative; box-shadow: 0 -10px 40px rgba(0,0,0,0.1); animation: slideUpModal 0.3s cubic-bezier(0.16, 1, 0.3, 1);}
+  @keyframes slideUpModal { from { transform:translateY(100%); } to { transform:translateY(0); } }
+  
+  .modal-header{ padding:20px; border-bottom:1px solid var(--panel-line); display:flex; justify-content:space-between; align-items:center; background: #fff; border-radius:20px 20px 0 0;}
+  .modal-header h3{ font-size:16px; font-weight:700; margin:0;}
+  .mclose{ background:var(--panel); border:none; width:32px; height:32px; border-radius:99px; display:flex; align-items:center; justify-content:center; font-size:16px; cursor:pointer; color:var(--ink-soft);}
+  .modal-body{ padding:20px; overflow-y:auto; flex:1; }
+  .modal-footer{ padding:16px 20px calc(16px + env(safe-area-inset-bottom, 0px)); border-top:1px solid var(--panel-line); background:#fff; display:grid; grid-template-columns: 1fr 1fr; gap:12px; }
+  .modal-footer.single { grid-template-columns: 1fr;}
+
+  /* Tab di dalam modal draft */
+  .draft-tabs { display: flex; gap: 8px; margin-bottom: 16px; overflow-x: auto; padding-bottom: 4px; }
+  .draft-tabs::-webkit-scrollbar { height: 0px; }
+  .d-tab { background: #fff; border: 1px solid var(--panel-line); color: var(--ink-soft); font-weight: 600; font-size: 13px; padding: 8px 16px; border-radius: 99px; cursor: pointer; white-space: nowrap; display:flex; align-items:center; gap:6px;}
+  .d-tab.active { background: var(--ink); color: #fff; border-color: var(--ink); }
+  
+  .draft-pane { display: none; }
+  .draft-pane.active { display: block; animation: fadeIn 0.2s; }
+  .draft-content{ width:100%; resize:none; overflow:hidden; font-size:14.5px; line-height:1.6; background:#fff; border:1px solid var(--panel-line); border-radius:12px; padding:16px; font-family:inherit; color:var(--ink); outline:none; box-shadow: 0 1px 2px rgba(0,0,0,0.02);}
+  .draft-content:focus { border-color: var(--ink); }
+
+  .prompt-card { background: #fff; border: 1px solid var(--panel-line); border-radius: 12px; padding: 16px; margin-top: 16px; }
+  .prompt-card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; font-size:13px; font-weight:700;}
+  .prompt-card pre { white-space: pre-wrap; font-size: 13px; font-family: inherit; margin: 0; color: var(--ink-soft); line-height: 1.5; background:var(--panel); padding:12px; border-radius:8px;}
+
+  /* LOGIN */
+  .login-screen{ position:fixed; inset:0; z-index:9999; background:var(--panel); display:flex; align-items:center; justify-content:center; padding:20px;}
+  .login-card{ background:#fff; width:100%; max-width:360px; padding:32px; border-radius:20px; box-shadow:0 10px 40px rgba(0,0,0,0.05); border:1px solid var(--panel-line);}
+  
+</style>
+</head>
+<body>
+
+<div id="toastContainer"></div>
+
+<!-- ================= LOGIN ================= -->
+<div class="login-screen" id="loginScreen">
+  <div class="login-card">
+    <div style="width:56px; height:56px; background:var(--ink); border-radius:16px; color:#fff; display:flex; align-items:center; justify-content:center; font-size:28px; margin:0 auto 24px;"><i class="ph-fill ph-fire"></i></div>
+    <h1 style="text-align:center; margin-bottom:8px;">RujakOS</h1>
+    <p style="text-align:center; color:var(--ink-soft); font-size:13px; margin-bottom:32px;">Command Center F&B</p>
+    <div id="loginErr" style="color:var(--danger); font-size:12px; text-align:center; margin-bottom:16px; display:none;"></div>
+    <form id="loginForm">
+      <div class="field"><label>Email</label><input type="email" id="email" required placeholder="admin@rujak.co" /></div>
+      <div class="field"><label>Password</label><input type="password" id="password" required placeholder="••••••••" /></div>
+      <button type="submit" class="btn primary" style="width:100%; padding:14px; font-size:14px;" id="loginBtn">Masuk Sistem</button>
+    </form>
+  </div>
+</div>
+
+<!-- ================= APP HEADER ================= -->
+<header class="app-header hidden" id="appHeader">
+  <div class="greeting">
+    RujakOS <span class="status-dot" title="Sistem Terhubung"></span>
+  </div>
+  <div class="header-actions">
+    <button class="icon-btn" onclick="switchTab('brain')" title="Brain"><i class="ph ph-database"></i></button>
+    <button class="icon-btn" id="logoutBtn" title="Keluar"><i class="ph ph-sign-out"></i></button>
+  </div>
+</header>
+
+<div class="wrap hidden" id="app">
+
+  <!-- ================= TAB 1: 🏠 BERANDA (Monitoring) ================= -->
+  <div class="tabpanel active" id="tab-beranda">
+    
+    <!-- Hero / AI Compass -->
+    <div class="hero-dark" id="planContainer">
+      <div class="label"><i class="ph-fill ph-compass"></i> Kompas AI</div>
+      <h3>Memuat arahan hari ini...</h3>
+      <div class="skeleton" style="background:#27272A;"></div>
+    </div>
+
+    <!-- Vitals -->
+    <div class="section-title"><i class="ph-fill ph-activity"></i> Denyut Bisnis (7 Hari)</div>
+    <div class="grid-2" style="margin-bottom:16px;">
+      <div class="stat-box"><div class="sl">Total Order</div><div class="sv" id="statOrders">0</div></div>
+      <div class="stat-box"><div class="sl">Pesanan Pending</div><div class="sv" id="statPending" style="color:var(--gold);">0</div></div>
+    </div>
+    <div class="section-card" style="padding:16px;">
+      <div style="font-size:12px; font-weight:600; color:var(--ink-soft); margin-bottom:8px;">PENDAPATAN KOTOR</div>
+      <div id="statRevenue" style="font-size:28px; font-weight:800; font-variant-numeric:tabular-nums; margin-bottom:16px;">Rp0</div>
+      <canvas id="salesChart" height="60"></canvas>
+    </div>
+
+  </div>
+
+  <!-- ================= TAB 2: ✨ PABRIK AI (Ideation) ================= -->
+  <div class="tabpanel" id="tab-pabrik">
+    
+    <div class="action-banner">
+      <p>💡 AI siap membantu Anda memproduksi draf konten sosmed untuk Rujak.</p>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+        <button class="btn primary" id="btnInstantGenerate"><i class="ph-fill ph-lightning"></i> Buat Instan</button>
+        <button class="btn ghost" id="btnOrchestrate" style="background:#fff;"><i class="ph-fill ph-robot"></i> Autopilot</button>
+      </div>
+    </div>
+
+    <div class="section-title" style="justify-content:space-between;">
+      <span><i class="ph-fill ph-archive"></i> Ide Belum Diproses</span>
+      <button class="btn ghost" id="btnRefreshIdeas" style="padding:4px 8px; font-size:11px; border:none;"><i class="ph ph-arrows-clockwise"></i> Sync</button>
+    </div>
+    
+    <div id="ideasContainer">
+      <div class="empty-box"><i class="ph ph-sparkle" style="font-size:24px;"></i> Memuat ide...</div>
+    </div>
+
+  </div>
+
+  <!-- ================= TAB 3: 📋 ANTREAN (Kanban Workflow) ================= -->
+  <div class="tabpanel" id="tab-antrean">
+    <div class="section-title"><i class="ph-fill ph-kanban"></i> Papan Eksekusi Konten</div>
+    <p style="font-size:13px; color:var(--ink-soft); margin-top:-10px; margin-bottom:16px;">Konten yang sudah disetujui berjalan ke sini. Geser ke kanan untuk melihat tahap selanjutnya.</p>
+
+    <div class="kanban-board" id="kanbanBoard">
+      <!-- Kolom Disetujui -->
+      <div class="k-col" id="col-reviewed">
+        <div class="k-header"><span>Menunggu Visual</span><span class="k-count">0</span></div>
+        <div class="k-items"></div>
+      </div>
+      <!-- Kolom Siap Tayang -->
+      <div class="k-col" id="col-scheduled">
+        <div class="k-header"><span>Siap Di-posting</span><span class="k-count">0</span></div>
+        <div class="k-items"></div>
+      </div>
+      <!-- Kolom Selesai -->
+      <div class="k-col" id="col-published">
+        <div class="k-header"><span>Selesai Tayang</span><span class="k-count">0</span></div>
+        <div class="k-items"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= TAB 4: 🧠 BRAIN & SETTINGS ================= -->
+  <div class="tabpanel" id="tab-brain">
+    
+    <div class="section-title" style="justify-content:space-between;">
+      <span><i class="ph-fill ph-database"></i> Aset Pengetahuan AI</span>
+      <button class="btn ghost" id="btnAddKnowledge" style="padding:4px 10px; font-size:11px; background:#fff;"><i class="ph ph-plus"></i> Tambah</button>
+    </div>
+    <div class="data-list" id="knowledgeList" style="margin-bottom:32px;">
+      <div class="empty-box"><i class="ph ph-spinner-gap ph-spin"></i> Memuat...</div>
+    </div>
+
+    <div class="section-title"><i class="ph-fill ph-sliders"></i> Pengaturan Sistem</div>
+    <div class="section-card">
+      <div class="field"><label>Target Autopilot (Per Hari)</label><input type="number" id="settingTargetPerDay" value="3" min="1"></div>
+      <button class="btn ghost" style="width:100%; border:1px solid var(--panel-line);" id="btnSaveSettings">Simpan Pengaturan</button>
+    </div>
+
+  </div>
+
+</div>
+
+<!-- ================= BOTTOM NAVIGATION ================= -->
+<nav class="bottom-nav hidden" id="bottomNav">
+  <button class="navbtn active" data-tab="beranda"><i class="ph-fill ph-house"></i>Beranda</button>
+  <button class="navbtn" data-tab="pabrik"><i class="ph-fill ph-magic-wand"></i>Pabrik AI</button>
+  <button class="navbtn" data-tab="antrean"><i class="ph-fill ph-kanban"></i>Antrean</button>
+  <button class="navbtn" data-tab="brain"><i class="ph-fill ph-brain"></i>Brain</button>
+</nav>
+
+<!-- ================= MODAL: DRAFT DETAIL (SMART CARDS CLICK) ================= -->
+<div class="modal-overlay" id="draftModal">
+  <div class="modal-box">
+    <div class="modal-header">
+      <h3 id="modalTitle">Review Konten</h3>
+      <button class="mclose" id="modalClose"><i class="ph ph-x"></i></button>
+    </div>
+    <div class="modal-body">
+      <div style="font-size:12px; font-weight:600; color:var(--ink-soft); margin-bottom:12px; text-transform:uppercase;" id="modalSub">Tipe: -</div>
+      
+      <div class="draft-tabs" id="draftTabs"></div>
+      <div id="draftContentAreas"></div>
+      <div id="modalImageContainer"></div>
+      <div id="visualPromptContainer" style="display:none;"></div>
+    </div>
+    <div class="modal-footer" id="modalActions">
+      <!-- Diinjeksi via JS -->
+    </div>
+  </div>
+</div>
+
+<!-- ================= MODAL: FORM PENGETAHUAN ================= -->
+<div class="modal-overlay" id="knowledgeModal">
+  <div class="modal-box" style="max-width:400px; margin:0 auto; margin-bottom:auto; margin-top:20vh; border-radius:20px;">
+    <div class="modal-header">
+      <h3 id="knowledgeModalTitle">Tambah Aset</h3>
+      <button class="mclose" id="knowledgeModalClose"><i class="ph ph-x"></i></button>
+    </div>
+    <div class="modal-body">
+      <div class="field"><label>Tipe</label><select id="kEntityType"><option value="product">Produk Menu</option><option value="usp">Keunggulan</option><option value="photo">Link Foto</option><option value="brand">Info Brand</option></select></div>
+      <div class="field"><label>Nama/Judul</label><input type="text" id="kName" placeholder="Cth: Rujak Serut Spesial" /></div>
+      <div class="field"><label>Isi/Keterangan/URL</label><input type="text" id="kProperty" placeholder="Deskripsi atau URL Gambar" /></div>
+    </div>
+    <div class="modal-footer single">
+      <button class="btn primary" id="knowledgeModalSave">Simpan Aset</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  // --- KONFIGURASI SUPABASE ---
+  const SUPABASE_URL = 'https://eihsgpqquydxbglqlret.supabase.co';
+  const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVpaHNncHFxdXlkeGJnbHFscmV0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI4MTU3MzksImV4cCI6MjA5ODM5MTczOX0.1GB3rw5xKygdqLUhVh4ND6z98CSFraCqSM2hWyTN9ng';
+  const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  
+  const rupiah = v => 'Rp' + new Intl.NumberFormat('id').format(v || 0);
+  const esc = s => (s ?? '').toString().replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+  // --- TOOLS ---
+  window.showToast = function(msg, type='success') {
+    const container = document.getElementById('toastContainer');
+    const toast = document.createElement('div'); toast.className = `toast ${type}`;
+    const icon = type==='success'?'ph-check-circle':type==='error'?'ph-warning-circle':'ph-info';
+    toast.innerHTML = `<i class="ph-fill ${icon}"></i> <span>${esc(msg)}</span>`;
+    container.appendChild(toast);
+    setTimeout(() => { toast.style.opacity='0'; toast.style.transform='translateY(20px) scale(0.95)'; setTimeout(()=>toast.remove(),300); }, 3000);
+  };
+  
+  window.copyText = function(text) {
+    const ta = document.createElement('textarea'); ta.value = text; document.body.appendChild(ta); ta.select(); 
+    try { document.execCommand('copy'); showToast('Teks disalin'); } catch(e){ showToast('Gagal menyalin','error'); } document.body.removeChild(ta);
+  };
+  
+  window.autoResize = function(el){ el.style.height='auto'; el.style.height=(el.scrollHeight+2)+'px'; };
+
+  // Tutup Modal via ESC key
+  document.addEventListener('keydown', e => {
+    if(e.key === "Escape") {
+      document.getElementById('draftModal').classList.remove('active');
+      document.getElementById('knowledgeModal').classList.remove('active');
+    }
+  });
+
+  // Pemecah Draft AI ke Tabs & Ekstraksi Preview
+  function parseDraftToTabs(fullText) {
+    if (!fullText) return [{ id:'utama', title:'Draft', icon:'ph-file-text', content:'' }];
+    let lines = fullText.split('\n');
+    let tabs = { 'utama': { title:'Draft', icon:'ph-file-text', content:[] } };
+    let currentId = 'utama';
+
+    lines.forEach(line => {
+      let upper = line.toUpperCase();
+      if (upper.includes('TIKTOK SCRIPT') || (upper.includes('TIKTOK') && line.length<25)) { currentId='tiktok'; if(!tabs[currentId]) tabs[currentId]={ title:'TikTok', icon:'ph-tiktok-logo', content:[] }; }
+      else if (upper.includes('INSTAGRAM CAPTION') || upper.includes('IG CAPTION') || (upper.includes('INSTAGRAM') && line.length<25)) { currentId='ig'; if(!tabs[currentId]) tabs[currentId]={ title:'Instagram', icon:'ph-instagram-logo', content:[] }; }
+      else if (upper.includes('THREADS SCRIPT') || (upper.includes('THREADS') && line.length<25)) { currentId='threads'; if(!tabs[currentId]) tabs[currentId]={ title:'Threads', icon:'ph-threads-logo', content:[] }; }
+      else { tabs[currentId].content.push(line); }
+    });
+
+    let result = [];
+    for (let key in tabs) { 
+      let content = tabs[key].content.join('\n').trim(); 
+      if (content) result.push({ id:key, title:tabs[key].title, icon:tabs[key].icon, content:content }); 
+    }
+    if (result.length===0) return [{ id:'utama', title:'Draft', icon:'ph-file-text', content:fullText }];
+    return result;
+  }
+
+  // Fungsi ambil 1 kalimat pertama untuk preview kartu
+  function getPreviewText(fullText) {
+    if(!fullText) return "Tidak ada teks...";
+    const clean = fullText.replace(/\[.*?\]|\*.*?\*/g, '').replace(/TikTok Script|Instagram Caption|Threads Script/gi, '').trim();
+    const firstLine = clean.split('\n').find(l => l.trim().length > 10);
+    return firstLine ? firstLine.substring(0, 80) + '...' : "Melihat draft...";
+  }
+  
+  // Fungsi deteksi platform icon untuk kartu
+  function getPlatformIcons(fullText) {
+    let icons = '';
+    const upper = fullText.toUpperCase();
+    if(upper.includes('TIKTOK')) icons += '<i class="ph ph-tiktok-logo"></i>';
+    if(upper.includes('INSTAGRAM') || upper.includes('IG CAPTION')) icons += '<i class="ph ph-instagram-logo"></i>';
+    if(upper.includes('THREADS')) icons += '<i class="ph ph-threads-logo"></i>';
+    return icons || '<i class="ph ph-file-text"></i>';
+  }
+
+  // --- AUTENTIKASI ---
+  const loginScreen = document.getElementById('loginScreen');
+  const app = document.getElementById('app');
+  const appHeader = document.getElementById('appHeader');
+  const bottomNav = document.getElementById('bottomNav');
+  
+  async function checkSession(){
+    try { const { data:{ session } } = await supabase.auth.getSession(); if (session){ showApp(session.user.email); } else { showLogin(); } } catch (e) { showLogin(); }
+  }
+  function showApp(email){
+    loginScreen.classList.add('hidden'); app.classList.remove('hidden'); appHeader.classList.remove('hidden'); bottomNav.classList.remove('hidden');
+    initApp();
+  }
+  function showLogin(){ loginScreen.classList.remove('hidden'); app.classList.add('hidden'); appHeader.classList.add('hidden'); bottomNav.classList.add('hidden'); }
+
+  document.getElementById('loginForm').addEventListener('submit', async e => {
+    e.preventDefault();
+    const btn = document.getElementById('loginBtn'); btn.disabled = true; btn.innerHTML = '<i class="ph ph-spinner-gap ph-spin"></i> Loading...';
+    try{
+      const { error } = await supabase.auth.signInWithPassword({ email: document.getElementById('email').value.trim(), password: document.getElementById('password').value.trim() });
+      if (error) throw error;
+      location.reload(); // Hard reload to clear states
+    } catch(e){
+      document.getElementById('loginErr').innerText = 'Email/Password salah.'; document.getElementById('loginErr').style.display = 'block';
+    } finally { btn.disabled=false; btn.innerHTML='Masuk Sistem'; }
+  });
+  document.getElementById('logoutBtn').addEventListener('click', async () => { await supabase.auth.signOut(); location.reload(); });
+
+  // --- TAB NAVIGATION ---
+  function switchTab(tabId) {
+    document.querySelectorAll('.navbtn').forEach(b => b.classList.remove('active'));
+    const targetNav = document.querySelector(`.navbtn[data-tab="${tabId}"]`);
+    if(targetNav) targetNav.classList.add('active');
+    
+    document.querySelectorAll('.tabpanel').forEach(p => p.classList.remove('active'));
+    document.getElementById('tab-' + tabId).classList.add('active');
+    
+    // Auto-scroll ke atas saat pindah tab
+    window.scrollTo(0,0);
+    localStorage.setItem('rujakActiveTab', tabId);
+  }
+  document.querySelectorAll('.navbtn').forEach(btn => { btn.addEventListener('click', function(){ switchTab(this.dataset.tab); }); });
+
+  // --- MAIN STATE & INIT ---
+  let allContent = [], allKnowledge = [], chartInstance = null;
+  let currentOpenId = null; let currentModalDrafts = []; let editingKnowledgeId = null;
+
+  function initApp(){
+    switchTab(localStorage.getItem('rujakActiveTab') || 'beranda');
+    loadOrders(); loadPlan(); loadContent(); loadKnowledge(); loadSettings();
+
+    // Supabase Realtime Listener
+    supabase.channel('custom-all-channel')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'content_workflow' }, payload => { loadContent(); })
+      .subscribe();
+  }
+
+  async function authHeader(){
+    try { const { data: { session } } = await supabase.auth.getSession(); return session?.access_token || SUPABASE_ANON_KEY; } catch(e){ return SUPABASE_ANON_KEY; }
+  }
+
+  // --- LOADERS: Dashboard ---
+  async function loadOrders(){
+    try{
+      const { data } = await supabase.from('orders_sync').select('*').order('created_at',{ascending:false});
+      const orders = data || [];
+      document.getElementById('statOrders').innerText = orders.length;
+      document.getElementById('statRevenue').innerText = rupiah(orders.reduce((s,o)=>s+(o.total||0),0));
+      document.getElementById('statPending').innerText = orders.filter(o=>o.status==='pending').length;
+      
+      const today=new Date(); const dates=[], map={};
+      for(let i=6;i>=0;i--){ const d=new Date(today); d.setDate(d.getDate()-i); const k=d.toISOString().slice(0,10); dates.push(k); map[k]=0; }
+      orders.forEach(o=>{ const k=(o.created_at||'').slice(0,10); if(map[k]!==undefined) map[k]+=(o.total||0); });
+      
+      const ctx = document.getElementById('salesChart').getContext('2d');
+      if (chartInstance) chartInstance.destroy();
+      chartInstance = new Chart(ctx,{ type:'line', data:{ labels: dates.map(d=>d.slice(5)), datasets:[{ data:Object.values(map), borderColor:'#18181B', backgroundColor:'rgba(24,24,27,0.03)', fill:true, tension:0.4, pointRadius:3 }] }, options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{ y:{display:false, beginAtZero:true}, x:{display:false} }, layout:{padding:0} } });
+    } catch(e){}
+  }
+
+  async function loadPlan(){
+    try{
+      const { data } = await supabase.from('ai_plans').select('*').eq('plan_date',new Date().toISOString().slice(0,10)).order('created_at',{ascending:false}).limit(1);
+      const c = document.getElementById('planContainer');
+      if (!data || data.length===0){ c.innerHTML = '<div class="label"><i class="ph-fill ph-compass"></i> Kompas AI</div><p style="color:#A1A1AA;">Sistem belum membuahkan rekomendasi hari ini.</p>'; return; }
+      c.innerHTML = `<div class="label"><i class="ph-fill ph-target"></i> FOKUS: ${esc(data[0].target_menu||'-')}</div><h3>${esc(data[0].title)}</h3><p>${esc(data[0].recommendation)}</p>`;
+    } catch(e){}
+  }
+
+  // --- LOADERS: Content (Pabrik & Kanban) ---
+  async function loadContent(){
+    try{
+      const { data } = await supabase.from('content_workflow').select('*').order('created_at', { ascending: false });
+      allContent = data || [];
+      renderIdeation(); 
+      renderKanban();
+    } catch(e){ console.error(e); }
+  }
+
+  function renderIdeation(){
+    const ideas = allContent.filter(c=>c.status==='draft');
+    const container = document.getElementById('ideasContainer');
+    if(ideas.length===0){ container.innerHTML = '<div class="empty-box"><i class="ph ph-check-circle" style="font-size:28px; color:var(--leaf);"></i><span>Semua ide sudah diproses!</span></div>'; return; }
+    
+    container.innerHTML = ideas.map(c => `
+      <div class="idea-card" onclick="openDraft(${c.id})">
+        <div class="idea-head">
+          <div class="idea-title">${esc(c.title || 'Draft Baru')}</div>
+          <div class="idea-tag">${esc(c.slot_type || 'Umum')}</div>
+        </div>
+        <div class="idea-preview">"${getPreviewText(c.draft)}"</div>
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <div class="platform-icons">${getPlatformIcons(c.draft)}</div>
+          <div class="idea-actions">
+            <button class="btn danger" style="padding:6px 12px; font-size:12px;" onclick="event.stopPropagation(); setStatus_(${c.id}, 'delete')">Buang</button>
+            <button class="btn primary" style="padding:6px 12px; font-size:12px;" onclick="event.stopPropagation(); setStatus_(${c.id}, 'reviewed')">Setujui</button>
+          </div>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  function renderKanban(){
+    const cols = { reviewed:[], scheduled:[], published:[] };
+    allContent.forEach(c => { if(cols[c.status]) cols[c.status].push(c); });
+    
+    ['reviewed', 'scheduled', 'published'].forEach(status => {
+      const container = document.querySelector(`#col-${status} .k-items`);
+      const countEl = document.querySelector(`#col-${status} .k-count`);
+      countEl.innerText = cols[status].length;
+      
+      if(cols[status].length===0){ container.innerHTML = '<div style="text-align:center; padding:20px 0; color:var(--ink-soft); font-size:12px; border:2px dashed var(--panel-line); border-radius:8px;">Kosong</div>'; }
+      else {
+        container.innerHTML = cols[status].map(c => `
+          <div class="k-card" onclick="openDraft(${c.id})">
+            <div class="k-title">${esc(c.title || 'Tanpa Judul')}</div>
+            <div class="k-preview">${getPreviewText(c.draft)}</div>
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <span style="font-size:10px; color:var(--ink-soft); background:var(--panel); padding:2px 6px; border-radius:4px;">${esc(c.slot_type||'Umum')}</span>
+              <div class="platform-icons" style="margin:0;">${getPlatformIcons(c.draft)}</div>
+            </div>
+          </div>
+        `).join('');
+      }
+    });
+  }
+
+  // --- LOADERS: Brain (Pengetahuan) ---
+  async function loadKnowledge(){
+    try {
+      const { data } = await supabase.from('knowledge_entities').select('*').eq('is_active', true).order('entity_type');
+      allKnowledge = data || [];
+      const list = document.getElementById('knowledgeList');
+      if (!allKnowledge.length) { list.innerHTML = '<div class="empty-box"><i class="ph ph-database" style="font-size:28px;"></i><span>Belum ada aset.</span></div>'; } 
+      else {
+        list.innerHTML = allKnowledge.map(e => `
+          <div class="data-item" onclick="openKnowledgeModal(${e.id})">
+            <div class="d-info">
+              <h4>${esc(e.name)}</h4>
+              <p>${esc(JSON.stringify(e.properties).slice(0,40))}...</p>
+            </div>
+            <div class="d-badge">${esc(e.entity_type)}</div>
+          </div>
+        `).join('');
+      }
+    } catch(e) {}
+  }
+
+  // --- SETTINGS ---
+  function loadSettings(){
+    try {
+      const raw = localStorage.getItem('rujakSettings');
+      if(raw){ const s = JSON.parse(raw); document.getElementById('settingTargetPerDay').value = s.targetPerDay || 3; }
+    } catch(e){}
+  }
+  document.getElementById('btnSaveSettings').addEventListener('click', () => {
+    const val = parseInt(document.getElementById('settingTargetPerDay').value, 10) || 3;
+    localStorage.setItem('rujakSettings', JSON.stringify({ targetPerDay: val }));
+    showToast('Disimpan');
+  });
+
+  // --- ACTIONS: Generasi AI ---
+  document.getElementById('btnRefreshIdeas').addEventListener('click', loadContent);
+  document.getElementById('btnInstantGenerate').addEventListener('click', async function() {
+    this.disabled = true; const ori = this.innerHTML; this.innerHTML = '<i class="ph ph-spinner-gap ph-spin"></i> Meracik...';
+    try {
+      const token = await authHeader();
+      const res = await fetch(`${SUPABASE_URL}/functions/v1/ai-writer`, { method: 'POST', headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ slot_type: 'Instan Multi-Platform' }) });
+      const r = await res.json();
+      if (!r.success) throw new Error(r.error);
+      showToast('Ide Instan berhasil dibuat!'); loadContent();
+    } catch(e) { showToast('Gagal meracik: '+e.message, 'error'); } 
+    finally { this.disabled = false; this.innerHTML = ori; }
+  });
+  document.getElementById('btnOrchestrate').addEventListener('click', async function() {
+    this.disabled = true; const ori = this.innerHTML; this.innerHTML = '<i class="ph ph-spinner-gap ph-spin"></i> Berjalan...';
+    try {
+      const token = await authHeader();
+      const res = await fetch(`${SUPABASE_URL}/functions/v1/ai-orchestrator`, { method: 'POST', headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${token}` } });
+      const r = await res.json();
+      if (r.success) showToast('Autopilot terjadwal.'); else throw new Error(r.error);
+    } catch(e){ showToast('Gagal: '+e.message, 'error'); }
+    finally { this.disabled = false; this.innerHTML = ori; }
+  });
+
+  // --- KNOWLEDGE MODAL ---
+  const kModal = document.getElementById('knowledgeModal');
+  window.openKnowledgeModal = function(id){
+    editingKnowledgeId = id || null;
+    const record = id ? allKnowledge.find(k => k.id === id) : null;
+    document.getElementById('knowledgeModalTitle').innerText = record ? 'Edit Aset' : 'Tambah Aset';
+    document.getElementById('kEntityType').value = record?.entity_type || 'product';
+    document.getElementById('kName').value = record?.name || '';
+    document.getElementById('kProperty').value = record?.properties ? (typeof record.properties === 'string' ? record.properties : record.properties.value || '') : '';
+    kModal.classList.add('active');
+  }
+  document.getElementById('btnAddKnowledge').addEventListener('click', () => openKnowledgeModal(null));
+  document.getElementById('knowledgeModalClose').addEventListener('click', () => kModal.classList.remove('active'));
+  document.getElementById('knowledgeModalCancel').addEventListener('click', () => kModal.classList.remove('active'));
+  document.getElementById('knowledgeModalSave').addEventListener('click', async () => {
+    const btn = document.getElementById('knowledgeModalSave'); btn.disabled=true;
+    const payload = { entity_type: document.getElementById('kEntityType').value, name: document.getElementById('kName').value.trim(), properties: { value: document.getElementById('kProperty').value.trim() }, is_active: true };
+    try{
+      if(!payload.name) throw new Error("Nama aset wajib!");
+      if(editingKnowledgeId) await supabase.from('knowledge_entities').update(payload).eq('id', editingKnowledgeId);
+      else await supabase.from('knowledge_entities').insert(payload);
+      kModal.classList.remove('active'); showToast('Aset tersimpan'); loadKnowledge();
+    } catch(e){ showToast(e.message, 'error'); } finally { btn.disabled=false; }
+  });
+
+  // --- DRAFT MODAL ---
+  const draftModal = document.getElementById('draftModal');
+  window.switchDraftTab = function(tabId) {
+    document.querySelectorAll('.d-tab').forEach(b => b.classList.remove('active'));
+    document.getElementById('tabbtn-'+tabId).classList.add('active');
+    document.querySelectorAll('.draft-pane').forEach(p => p.classList.remove('active'));
+    document.getElementById('pane-'+tabId).classList.add('active');
+    const ta = document.getElementById('ta-'+tabId); if(ta) { setTimeout(() => window.autoResize(ta), 10); }
+  };
+  
+  window.openDraft = function(id){
+    const c = allContent.find(x => x.id === id); if (!c) return;
+    currentOpenId = id;
+    
+    document.getElementById('modalTitle').innerText = c.title || 'Konten';
+    document.getElementById('modalSub').innerText = `Slot: ${c.slot_type||'-'}`;
+    
+    currentModalDrafts = parseDraftToTabs(c.draft);
+    document.getElementById('draftTabs').innerHTML = currentModalDrafts.map((t, i) => `<button class="d-tab ${i===0?'active':''}" id="tabbtn-${t.id}" onclick="switchDraftTab('${t.id}')"><i class="ph ${t.icon}"></i> ${t.title}</button>`).join('');
+    document.getElementById('draftContentAreas').innerHTML = currentModalDrafts.map((t, i) => `
+      <div class="draft-pane ${i===0?'active':''}" id="pane-${t.id}">
+        <div class="draft-pane-header"><span>Teks ${t.title}</span><button class="btn ghost" style="padding:4px 8px; font-size:11px;" onclick="copyText(document.getElementById('ta-${t.id}').value)"><i class="ph ph-copy"></i> Salin</button></div>
+        <textarea class="draft-content" id="ta-${t.id}" oninput="window.autoResize(this)">${t.content}</textarea>
+      </div>`).join('');
+    
+    setTimeout(() => { const fTa = document.getElementById('ta-'+currentModalDrafts[0].id); if(fTa) window.autoResize(fTa); }, 50);
+
+    const imgCont = document.getElementById('modalImageContainer');
+    imgCont.innerHTML = c.image_url ? `<img src="${c.image_url}" style="width:100%; border-radius:12px; margin-top:16px; display:block;">` : '';
+
+    const vpCont = document.getElementById('visualPromptContainer');
+    if (c.visual_prompt || c.video_prompt) {
+      vpCont.style.display = 'block'; let h = '';
+      if(c.visual_prompt) h+= `<div class="prompt-card"><div class="prompt-card-header"><span><i class="ph-fill ph-palette"></i> Midjourney</span><button class="btn ghost" style="padding:4px 8px; font-size:11px;" onclick="copyText(\`${esc(c.visual_prompt)}\`)"><i class="ph ph-copy"></i></button></div><pre>${esc(c.visual_prompt)}</pre></div>`;
+      if(c.video_prompt) h+= `<div class="prompt-card"><div class="prompt-card-header"><span><i class="ph-fill ph-video-camera"></i> Runway</span><button class="btn ghost" style="padding:4px 8px; font-size:11px;" onclick="copyText(\`${esc(c.video_prompt)}\`)"><i class="ph ph-copy"></i></button></div><pre>${esc(c.video_prompt)}</pre></div>`;
+      vpCont.innerHTML = h;
+    } else { vpCont.style.display = 'none'; vpCont.innerHTML=''; }
+
+    // Render Actions based on status
+    const acts = document.getElementById('modalActions'); acts.innerHTML = '';
+    const getDraft = () => currentModalDrafts.map(t => { let val = document.getElementById('ta-'+t.id).value.trim(); return currentModalDrafts.length===1 && t.id==='utama' ? val : `\n${t.title.toUpperCase()} SCRIPT\n${val}\n`; }).join('\n').trim();
+
+    if(c.status === 'draft'){
+      acts.innerHTML = `
+        <button class="btn danger" onclick="setStatus_(${c.id}, 'delete')">Buang</button>
+        <button class="btn primary" onclick="setStatus_(${c.id}, 'reviewed', {draft: \`${esc(getDraft())}\`})">Setujui -> Kanban</button>
+      `;
+    } else if(c.status === 'reviewed'){
+      acts.innerHTML = `
+        <button class="btn ghost" onclick="invokeFunction('ai-visual-prompts', {content_id:${c.id}}, this)"><i class="ph ph-sparkle"></i> Teks to Visual</button>
+        <button class="btn ghost" onclick="invokeFunction('compose-image', {content_id:${c.id}, headline:'${esc(c.title)}'}, this)"><i class="ph ph-image"></i> Desain Auto</button>
+        <button class="btn danger" onclick="setStatus_(${c.id}, 'delete')">Buang</button>
+        <button class="btn primary" onclick="setStatus_(${c.id}, 'scheduled', {draft: \`${esc(getDraft())}\`})">Siap Tayang</button>
+      `;
+    } else if(c.status === 'scheduled'){
+      acts.innerHTML = `
+        <button class="btn danger" onclick="setStatus_(${c.id}, 'reviewed')">Batal Tayang</button>
+        <button class="btn primary" onclick="setStatus_(${c.id}, 'published', {draft: \`${esc(getDraft())}\`})">Sudah Diposting</button>
+      `;
+    } else {
+      acts.innerHTML = `<button class="btn ghost" style="width:100%" onclick="document.getElementById('draftModal').classList.remove('active')">Tutup</button>`;
+    }
+
+    draftModal.classList.add('active');
+  }
+
+  window.setStatus_ = async function(id, status, extra={}){
+    try{
+      if(status === 'delete'){
+        if(!confirm('Buang konten ini?')) return;
+        await supabase.from('content_workflow').delete().eq('id', id);
+      } else {
+        await supabase.from('content_workflow').update({ status, updated_at: new Date().toISOString(), ...extra }).eq('id', id);
+      }
+      draftModal.classList.remove('active'); showToast('Berhasil diperbarui'); loadContent();
+    } catch(e){ showToast('Gagal: '+e.message, 'error'); }
+  }
+
+  window.invokeFunction = async function(funcName, bodyData, btnEl){
+    const ori = btnEl.innerHTML; btnEl.innerHTML = '<i class="ph ph-spinner-gap ph-spin"></i>'; btnEl.disabled=true;
+    try {
+      const { data, error } = await supabase.functions.invoke(funcName, { body: bodyData });
+      if(error) throw error;
+      showToast('Berhasil diproses!'); openDraft(currentOpenId); // reload modal
+    } catch(e) { showToast('Gagal memproses', 'error'); }
+    finally { btnEl.innerHTML = ori; btnEl.disabled=false; }
+  }
+
+  document.getElementById('modalClose').addEventListener('click', () => draftModal.classList.remove('active'));
+
+  checkSession();
+})();
+</script>
+</body>
+</html>
